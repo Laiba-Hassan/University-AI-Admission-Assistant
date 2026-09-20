@@ -1,0 +1,17 @@
+[
+  {
+    "key": "fac-computing",
+    "name": "Faculty of Computing",
+    "status": "approved"
+  },
+  {
+    "key": "fac-business",
+    "name": "Faculty of Business & Management",
+    "status": "approved"
+  },
+  {
+    "key": "fac-engineering",
+    "name": "Faculty of Engineering",
+    "status": "approved"
+  }
+]

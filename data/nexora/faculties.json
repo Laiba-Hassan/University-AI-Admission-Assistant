@@ -1,0 +1,12 @@
+[
+  {
+    "key": "fac-tech",
+    "name": "School of Technology",
+    "status": "approved"
+  },
+  {
+    "key": "fac-social",
+    "name": "School of Social Sciences & Media",
+    "status": "approved"
+  }
+]

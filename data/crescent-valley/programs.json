@@ -1,0 +1,162 @@
+[
+  {
+    "key": "bscs",
+    "faculty": "fac-computing",
+    "name": "BS Computer Science",
+    "code": "BSCS",
+    "degree_level": "bachelor",
+    "total_credit_hours": 133,
+    "campuses": [
+      "camp-lhr",
+      "camp-isb"
+    ],
+    "status": "approved"
+  },
+  {
+    "key": "bsse",
+    "faculty": "fac-computing",
+    "name": "BS Software Engineering",
+    "code": "BSSE",
+    "degree_level": "bachelor",
+    "total_credit_hours": 133,
+    "campuses": [
+      "camp-lhr"
+    ],
+    "status": "approved"
+  },
+  {
+    "key": "bsai",
+    "faculty": "fac-computing",
+    "name": "BS Artificial Intelligence",
+    "code": "BSAI",
+    "degree_level": "bachelor",
+    "total_credit_hours": 133,
+    "campuses": [
+      "camp-lhr",
+      "camp-isb"
+    ],
+    "status": "approved"
+  },
+  {
+    "key": "bsds",
+    "faculty": "fac-computing",
+    "name": "BS Data Science",
+    "code": "BSDS",
+    "degree_level": "bachelor",
+    "total_credit_hours": 133,
+    "campuses": [
+      "camp-isb"
+    ],
+    "status": "approved"
+  },
+  {
+    "key": "mscs",
+    "faculty": "fac-computing",
+    "name": "MS Computer Science",
+    "code": "MSCS",
+    "degree_level": "master",
+    "total_credit_hours": 30,
+    "campuses": [
+      "camp-lhr"
+    ],
+    "status": "approved"
+  },
+  {
+    "key": "bba",
+    "faculty": "fac-business",
+    "name": "Bachelor of Business Administration",
+    "code": "BBA",
+    "degree_level": "bachelor",
+    "total_credit_hours": 130,
+    "campuses": [
+      "camp-lhr",
+      "camp-isb"
+    ],
+    "status": "approved"
+  },
+  {
+    "key": "bsaf",
+    "faculty": "fac-business",
+    "name": "BS Accounting & Finance",
+    "code": "BSAF",
+    "degree_level": "bachelor",
+    "total_credit_hours": 130,
+    "campuses": [
+      "camp-lhr"
+    ],
+    "status": "approved"
+  },
+  {
+    "key": "bsecon",
+    "faculty": "fac-business",
+    "name": "BS Economics",
+    "code": "BSECON",
+    "degree_level": "bachelor",
+    "total_credit_hours": 126,
+    "campuses": [
+      "camp-isb"
+    ],
+    "status": "approved"
+  },
+  {
+    "key": "mba",
+    "faculty": "fac-business",
+    "name": "Master of Business Administration",
+    "code": "MBA",
+    "degree_level": "master",
+    "total_credit_hours": 63,
+    "campuses": [
+      "camp-lhr",
+      "camp-isb"
+    ],
+    "status": "approved"
+  },
+  {
+    "key": "bsee",
+    "faculty": "fac-engineering",
+    "name": "BS Electrical Engineering",
+    "code": "BSEE",
+    "degree_level": "bachelor",
+    "total_credit_hours": 136,
+    "campuses": [
+      "camp-lhr"
+    ],
+    "status": "approved"
+  },
+  {
+    "key": "bsme",
+    "faculty": "fac-engineering",
+    "name": "BS Mechanical Engineering",
+    "code": "BSME",
+    "degree_level": "bachelor",
+    "total_credit_hours": 136,
+    "campuses": [
+      "camp-lhr"
+    ],
+    "status": "approved"
+  },
+  {
+    "key": "bsce",
+    "faculty": "fac-engineering",
+    "name": "BS Civil Engineering",
+    "code": "BSCE",
+    "degree_level": "bachelor",
+    "total_credit_hours": 136,
+    "campuses": [
+      "camp-isb"
+    ],
+    "status": "approved"
+  },
+  {
+    "key": "bsche",
+    "faculty": "fac-engineering",
+    "name": "BS Chemical Engineering",
+    "code": "BSCHE",
+    "degree_level": "bachelor",
+    "total_credit_hours": 136,
+    "campuses": [
+      "camp-lhr"
+    ],
+    "status": "approved"
+  }
+]

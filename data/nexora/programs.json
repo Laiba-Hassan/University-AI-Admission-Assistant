@@ -1,0 +1,74 @@
+[
+  {
+    "key": "bscs",
+    "faculty": "fac-tech",
+    "name": "BS Computer Science",
+    "code": "BSCS",
+    "degree_level": "bachelor",
+    "total_credit_hours": 130,
+    "campuses": [
+      "camp-main"
+    ],
+    "status": "approved"
+  },
+  {
+    "key": "bsit",
+    "faculty": "fac-tech",
+    "name": "BS Information Technology",
+    "code": "BSIT",
+    "degree_level": "bachelor",
+    "total_credit_hours": 128,
+    "campuses": [
+      "camp-main"
+    ],
+    "status": "approved"
+  },
+  {
+    "key": "bscyber",
+    "faculty": "fac-tech",
+    "name": "BS Cyber Security",
+    "code": "BSCYB",
+    "degree_level": "bachelor",
+    "total_credit_hours": 130,
+    "campuses": [
+      "camp-main"
+    ],
+    "status": "approved"
+  },
+  {
+    "key": "bspsy",
+    "faculty": "fac-social",
+    "name": "BS Psychology",
+    "code": "BSPSY",
+    "degree_level": "bachelor",
+    "total_credit_hours": 124,
+    "campuses": [
+      "camp-main"
+    ],
+    "status": "approved"
+  },
+  {
+    "key": "bsmedia",
+    "faculty": "fac-social",
+    "name": "BS Media & Communication",
+    "code": "BSMC",
+    "degree_level": "bachelor",
+    "total_credit_hours": 124,
+    "campuses": [
+      "camp-main"
+    ],
+    "status": "approved"
+  },
+  {
+    "key": "mspsy",
+    "faculty": "fac-social",
+    "name": "MS Clinical Psychology",
+    "code": "MSCP",
+    "degree_level": "master",
+    "total_credit_hours": 36,
+    "campuses": [
+      "camp-main"
+    ],
+    "status": "approved"
+  }
+]

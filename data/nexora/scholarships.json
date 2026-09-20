@@ -1,0 +1,29 @@
+[
+  {
+    "key": "sch-nexora-star",
+    "name": "Nexora Star Scholarship",
+    "criteria": "Top 5% of applicants in the Nexora Aptitude Test.",
+    "coverage": "40% off per-credit-hour tuition for the first two semesters.",
+    "conditions": "Full-time enrolment; 3.4 CGPA to keep it for the second semester.",
+    "deadline": null,
+    "status": "approved"
+  },
+  {
+    "key": "sch-nexora-first-gen",
+    "name": "First-Generation Learner Grant",
+    "criteria": "Neither parent holds a university degree; family income documents required.",
+    "coverage": "Up to 50% tuition waiver.",
+    "conditions": "Assessed by interview; reviewed each year.",
+    "deadline": "2027-01-10",
+    "status": "approved"
+  },
+  {
+    "key": "sch-nexora-sports",
+    "name": "Sports Excellence Award",
+    "criteria": "Represented a province or country at a recognised sports event.",
+    "coverage": "25% tuition waiver.",
+    "conditions": "Must join a university team; certificate required.",
+    "deadline": null,
+    "status": "approved"
+  }
+]

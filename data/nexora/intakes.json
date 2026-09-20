@@ -1,0 +1,24 @@
+[
+  {
+    "key": "in-fall26",
+    "intake_name": "Fall 2026",
+    "programs": "all",
+    "applications_open": "2026-04-01",
+    "application_deadline": "2026-09-30",
+    "test_date": "2026-10-05",
+    "classes_start": "2026-10-19",
+    "last_verified_at": "2026-09-01",
+    "status": "approved"
+  },
+  {
+    "key": "in-spring27",
+    "intake_name": "Spring 2027",
+    "programs": "all",
+    "applications_open": "2026-11-01",
+    "application_deadline": "2027-01-20",
+    "test_date": "2027-01-25",
+    "classes_start": "2027-02-15",
+    "last_verified_at": "2026-09-01",
+    "status": "approved"
+  }
+]

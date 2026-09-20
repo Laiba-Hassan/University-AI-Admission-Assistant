@@ -1,0 +1,56 @@
+[
+  {
+    "key": "sch-merit",
+    "name": "Crescent Valley Merit Scholarship",
+    "criteria": "Score 85% or above in the Crescent Valley Entry Test and 80% or above in intermediate.",
+    "coverage": "50% tuition waiver in the first semester, renewable each semester while CGPA stays 3.5 or above.",
+    "conditions": "Full-time enrolment; CGPA 3.5+ to renew; cannot be combined with the Need-Based Grant or the Hafiz-e-Quran Concession.",
+    "deadline": null,
+    "status": "approved"
+  },
+  {
+    "key": "sch-topper",
+    "name": "Board Topper Award",
+    "criteria": "Top 3 position in any Pakistani education board in matriculation or intermediate.",
+    "coverage": "100% tuition waiver for the first year, then 50% while CGPA stays 3.3 or above.",
+    "conditions": "Board result certificate required; one award per student.",
+    "deadline": "2026-12-15",
+    "status": "approved"
+  },
+  {
+    "key": "sch-sibling",
+    "name": "Sibling Discount",
+    "criteria": "A sibling is currently enrolled at Crescent Valley University.",
+    "coverage": "10% tuition discount for the second sibling, 15% for a third.",
+    "conditions": "Both students must be full-time; applies to tuition only, not hostel or admission fees.",
+    "deadline": null,
+    "status": "approved"
+  },
+  {
+    "key": "sch-need",
+    "name": "Need-Based Financial Grant",
+    "criteria": "Family monthly income below PKR 100,000, verified by documents; at least 60% marks in intermediate.",
+    "coverage": "Up to 75% tuition waiver, decided case by case by the Financial Aid Committee.",
+    "conditions": "Income documents and an interview; reviewed every year; cannot be combined with the Merit Scholarship.",
+    "deadline": "2026-12-01",
+    "status": "approved"
+  },
+  {
+    "key": "sch-women-eng",
+    "name": "Women in Engineering Grant",
+    "criteria": "Female applicants to any Faculty of Engineering program with at least 70% in intermediate.",
+    "coverage": "25% tuition waiver for the full degree.",
+    "conditions": "Must remain enrolled in an engineering program; CGPA 3.0+ to renew.",
+    "deadline": "2026-12-15",
+    "status": "approved"
+  },
+  {
+    "key": "sch-hafiz",
+    "name": "Hafiz-e-Quran Concession",
+    "criteria": "Applicants who hold a certified Hafiz-e-Quran credential.",
+    "coverage": "20% tuition waiver.",
+    "conditions": "Certificate verified at admission; may be combined with the Sibling Discount but not the Merit Scholarship.",
+    "deadline": null,
+    "status": "approved"
+  }
+]

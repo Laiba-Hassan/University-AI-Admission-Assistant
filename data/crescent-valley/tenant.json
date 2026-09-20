@@ -1,0 +1,51 @@
+{
+  "name": "Crescent Valley University",
+  "subdomain": "crescent-valley",
+  "status": "active",
+  "plan_label": "demo",
+  "demo_label": "Demo — fictional data.",
+  "branding": {
+    "primary": "#0B3D91",
+    "accent": "#F2A900",
+    "logo": "assets/crescent-valley-logo.svg",
+    "tagline": "Learn. Build. Lead."
+  },
+  "welcome_message": "Welcome to Crescent Valley University admissions. Ask me about programs, fees, deadlines and scholarships.",
+  "working_hours": {
+    "tz": "Asia/Karachi",
+    "mon_fri": "09:00-17:00",
+    "sat": "09:00-13:00",
+    "sun": null
+  },
+  "default_reply_script": "roman_urdu",
+  "retention_days": 180,
+  "fee_stale_after_days": 90,
+  "limits": {
+    "monthly_conversation_limit": 2000,
+    "monthly_message_limit": 20000,
+    "web_enabled": true,
+    "whatsapp_enabled": true
+  },
+  "localized_messages": {
+    "welcome": {
+      "english": "Welcome to Crescent Valley University admissions! How can I help?",
+      "roman_urdu": "Crescent Valley University admissions mein khush amdeed! Main aap ki kya madad kar sakta hoon?",
+      "urdu": "میریڈین یونیورسٹی ایڈمشنز میں خوش آمدید! میں آپ کی کیا مدد کر سکتا ہوں؟"
+    },
+    "fallback": {
+      "english": "I don't have that in my available university information. Admissions staff can help you.",
+      "roman_urdu": "Ye maloomat mere paas mojood nahin hain. Admissions staff aap ki madad kar sakta hai.",
+      "urdu": "یہ معلومات میرے پاس موجود نہیں ہیں۔ ایڈمشنز اسٹاف آپ کی مدد کر سکتا ہے۔"
+    },
+    "handoff": {
+      "english": "I've passed your question to our admissions team. They'll reply during working hours.",
+      "roman_urdu": "Maine aap ka sawal admissions team ko bhej diya hai. Woh working hours mein jawab dein ge.",
+      "urdu": "میں نے آپ کا سوال ایڈمشنز ٹیم کو بھیج دیا ہے۔ وہ کام کے اوقات میں جواب دیں گے۔"
+    },
+    "after_hours": {
+      "english": "Our office is closed right now (Mon–Fri 9–5, Sat 9–1). I can still answer questions, and staff will follow up.",
+      "roman_urdu": "Hamara office abhi band hai (Mon–Fri 9–5, Sat 9–1). Main phir bhi sawalon ke jawab de sakta hoon, staff baad mein rabta karega.",
+      "urdu": "ہمارا دفتر ابھی بند ہے (پیر تا جمعہ 9 تا 5، ہفتہ 9 تا 1)۔ میں پھر بھی سوالات کا جواب دے سکتا ہوں، اسٹاف بعد میں رابطہ کرے گا۔"
+    }
+  }
+}

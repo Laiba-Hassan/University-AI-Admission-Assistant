@@ -1,0 +1,10 @@
+[
+  {"question": "How is tuition charged at Nexora University?", "answer": "Tuition is charged per credit hour. Your semester tuition equals the per-credit-hour rate multiplied by the credit hours you register for.", "approved": true},
+  {"question": "How many credit hours can I take in a semester?", "answer": "A normal load is 15 to 18 credit hours. Taking fewer or more requires advisor approval.", "approved": true},
+  {"question": "What is the Nexora Aptitude Test (NAT)?", "answer": "The NAT is a 90-minute test of English, reasoning and basic mathematics held on campus.", "approved": true},
+  {"question": "Does Nexora have a hostel?", "answer": "No. Nexora University does not currently have a hostel. The student affairs office can share a list of nearby approved private hostels.", "approved": true},
+  {"question": "Where is Nexora University?", "answer": "Nexora University has a single campus in Karachi (fictional address).", "approved": true},
+  {"question": "Can I pay fees online?", "answer": "Yes, through bank transfer or card on the student portal.", "approved": true},
+  {"question": "Do you offer online classes?", "answer": "Some elective courses are delivered online. Core courses are on campus.", "approved": true},
+  {"question": "How do I contact admissions?", "answer": "Use this chat, the website form, or call Monday to Friday 10am to 6pm.", "approved": true}
+]

@@ -1,0 +1,80 @@
+[
+  {
+    "program": "bscs",
+    "eligibility": "Intermediate (FSc Pre-Engineering / ICS / A-Level with Mathematics) with at least 60% marks; pass the Crescent Entry Test (CET).",
+    "required_documents": "CNIC or B-Form copy; matriculation and intermediate result cards; 4 passport-size photographs; domicile certificate",
+    "status": "approved"
+  },
+  {
+    "program": "bsse",
+    "eligibility": "Intermediate (FSc Pre-Engineering / ICS / A-Level with Mathematics) with at least 60% marks; pass the CET.",
+    "required_documents": "CNIC or B-Form copy; matriculation and intermediate result cards; 4 passport-size photographs; domicile certificate",
+    "status": "approved"
+  },
+  {
+    "program": "bsai",
+    "eligibility": "Intermediate with Mathematics, at least 65% marks; pass the CET.",
+    "required_documents": "CNIC or B-Form copy; matriculation and intermediate result cards; 4 passport-size photographs; domicile certificate",
+    "status": "approved"
+  },
+  {
+    "program": "bsds",
+    "eligibility": "Intermediate with Mathematics, at least 60% marks; pass the CET.",
+    "required_documents": "CNIC or B-Form copy; matriculation and intermediate result cards; 4 passport-size photographs; domicile certificate",
+    "status": "approved"
+  },
+  {
+    "program": "mscs",
+    "eligibility": "16-year BS in Computer Science or equivalent with CGPA 2.5 or above; pass the graduate assessment test.",
+    "required_documents": "Degree and transcripts; CNIC; 2 reference letters; statement of purpose",
+    "status": "approved"
+  },
+  {
+    "program": "bba",
+    "eligibility": "Intermediate in any group with at least 50% marks; pass the CET (business section).",
+    "required_documents": "CNIC or B-Form copy; matriculation and intermediate result cards; 4 passport-size photographs; domicile certificate",
+    "status": "approved"
+  },
+  {
+    "program": "bsaf",
+    "eligibility": "Intermediate (commerce or science) with at least 50% marks; pass the CET.",
+    "required_documents": "CNIC or B-Form copy; matriculation and intermediate result cards; 4 passport-size photographs; domicile certificate",
+    "status": "approved"
+  },
+  {
+    "program": "bsecon",
+    "eligibility": "Intermediate with at least 50% marks; pass the CET.",
+    "required_documents": "CNIC or B-Form copy; matriculation and intermediate result cards; 4 passport-size photographs; domicile certificate",
+    "status": "approved"
+  },
+  {
+    "program": "mba",
+    "eligibility": "16-year bachelor's degree with CGPA 2.5 or above; GMAT or the Crescent graduate test; 2 years of work experience preferred.",
+    "required_documents": "Degree and transcripts; CNIC; CV; 2 reference letters",
+    "status": "approved"
+  },
+  {
+    "program": "bsee",
+    "eligibility": "Intermediate (FSc Pre-Engineering / A-Level with Mathematics and Physics) with at least 60% marks; pass the Crescent Entry Test (CET); PEC registration requirements apply.",
+    "required_documents": "CNIC or B-Form copy; matriculation and intermediate result cards; 4 passport-size photographs; domicile certificate; PEC registration form",
+    "status": "approved"
+  },
+  {
+    "program": "bsme",
+    "eligibility": "Intermediate (FSc Pre-Engineering / A-Level with Mathematics and Physics) with at least 60% marks; pass the Crescent Entry Test (CET); PEC registration requirements apply.",
+    "required_documents": "CNIC or B-Form copy; matriculation and intermediate result cards; 4 passport-size photographs; domicile certificate; PEC registration form",
+    "status": "approved"
+  },
+  {
+    "program": "bsce",
+    "eligibility": "Intermediate (FSc Pre-Engineering / A-Level with Mathematics and Physics) with at least 60% marks; pass the Crescent Entry Test (CET); PEC registration requirements apply.",
+    "required_documents": "CNIC or B-Form copy; matriculation and intermediate result cards; 4 passport-size photographs; domicile certificate; PEC registration form",
+    "status": "approved"
+  },
+  {
+    "program": "bsche",
+    "eligibility": "Intermediate (FSc Pre-Engineering / A-Level with Mathematics and Physics) with at least 60% marks; pass the Crescent Entry Test (CET); PEC registration requirements apply.",
+    "required_documents": "CNIC or B-Form copy; matriculation and intermediate result cards; 4 passport-size photographs; domicile certificate; PEC registration form",
+    "status": "approved"
+  }
+]

@@ -1,0 +1,51 @@
+{
+  "name": "Nexora University",
+  "subdomain": "nexora",
+  "status": "active",
+  "plan_label": "demo",
+  "demo_label": "Demo — fictional data.",
+  "branding": {
+    "primary": "#0F766E",
+    "accent": "#E11D48",
+    "logo": "assets/nexora-logo.svg",
+    "tagline": "Begin something new."
+  },
+  "welcome_message": "Welcome to Nexora University! Ask me about programs, per-credit-hour fees, deadlines and scholarships.",
+  "working_hours": {
+    "tz": "Asia/Karachi",
+    "mon_fri": "10:00-18:00",
+    "sat": null,
+    "sun": null
+  },
+  "default_reply_script": "english",
+  "retention_days": 90,
+  "fee_stale_after_days": 120,
+  "limits": {
+    "monthly_conversation_limit": 500,
+    "monthly_message_limit": 5000,
+    "web_enabled": true,
+    "whatsapp_enabled": true
+  },
+  "localized_messages": {
+    "welcome": {
+      "english": "Welcome to Nexora University! How can I help?",
+      "roman_urdu": "Nexora University mein khush amdeed! Main kaise madad karoon?",
+      "urdu": "نووا یونیورسٹی میں خوش آمدید! میں کیسے مدد کروں؟"
+    },
+    "fallback": {
+      "english": "I don't have that information. Our admissions team can help.",
+      "roman_urdu": "Ye maloomat mere paas nahin hain. Admissions team madad kar sakti hai.",
+      "urdu": "یہ معلومات میرے پاس نہیں ہیں۔ ایڈمشنز ٹیم مدد کر سکتی ہے۔"
+    },
+    "handoff": {
+      "english": "I've asked our admissions team to follow up with you.",
+      "roman_urdu": "Maine admissions team se kaha hai ke aap se rabta karein.",
+      "urdu": "میں نے ایڈمشنز ٹیم سے کہا ہے کہ آپ سے رابطہ کرے۔"
+    },
+    "after_hours": {
+      "english": "We're closed now (Mon–Fri 10–6). Ask away and staff will follow up.",
+      "roman_urdu": "Hum abhi band hain (Mon–Fri 10–6). Sawal poochein, staff rabta karega.",
+      "urdu": "ہم ابھی بند ہیں (پیر تا جمعہ 10 تا 6)۔ سوال پوچھیں، اسٹاف رابطہ کرے گا۔"
+    }
+  }
+}

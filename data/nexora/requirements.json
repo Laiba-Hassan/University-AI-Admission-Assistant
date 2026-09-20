@@ -1,0 +1,38 @@
+[
+  {
+    "program": "bscs",
+    "eligibility": "Intermediate with Mathematics, at least 55% marks; Nexora Aptitude Test (NAT).",
+    "required_documents": "CNIC or B-Form; matriculation and intermediate result cards; 2 photographs",
+    "status": "approved"
+  },
+  {
+    "program": "bsit",
+    "eligibility": "Intermediate in any group, at least 50% marks; NAT.",
+    "required_documents": "CNIC or B-Form; matriculation and intermediate result cards; 2 photographs",
+    "status": "approved"
+  },
+  {
+    "program": "bscyber",
+    "eligibility": "Intermediate with Mathematics, at least 60% marks; NAT.",
+    "required_documents": "CNIC or B-Form; matriculation and intermediate result cards; 2 photographs",
+    "status": "approved"
+  },
+  {
+    "program": "bspsy",
+    "eligibility": "Intermediate in any group, at least 50% marks; NAT and interview.",
+    "required_documents": "CNIC or B-Form; matriculation and intermediate result cards; 2 photographs",
+    "status": "approved"
+  },
+  {
+    "program": "bsmedia",
+    "eligibility": "Intermediate in any group, at least 50% marks; NAT and portfolio or writing sample.",
+    "required_documents": "CNIC or B-Form; matriculation and intermediate result cards; 2 photographs",
+    "status": "approved"
+  },
+  {
+    "program": "mspsy",
+    "eligibility": "BS Psychology (16 years) with CGPA 3.0 or above; interview.",
+    "required_documents": "Degree and transcripts; CNIC; 2 reference letters",
+    "status": "approved"
+  }
+]

@@ -1,0 +1,11 @@
+node_modules/
+.env
+.env.*
+!.env.example
+*.log
+data/bakeoff/voice/*.ogg
+data/bakeoff/voice/*.opus
+data/bakeoff/voice/*.webm
+data/bakeoff/voice/*.m4a
+data/bakeoff/voice/*.mp4
+data/bakeoff/voice/*.wav

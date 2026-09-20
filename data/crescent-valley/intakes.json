@@ -1,0 +1,36 @@
+[
+  {
+    "key": "in-fall26",
+    "intake_name": "Fall 2026",
+    "programs": "all",
+    "applications_open": "2026-05-01",
+    "application_deadline": "2026-08-15",
+    "test_date": "2026-08-24",
+    "classes_start": "2026-09-14",
+    "last_verified_at": "2026-06-01",
+    "status": "approved",
+    "note": "Deadline already passed relative to the demo 'today' (2026-09-20): exercises deadline_passed."
+  },
+  {
+    "key": "in-spring27",
+    "intake_name": "Spring 2027",
+    "programs": "all",
+    "applications_open": "2026-10-15",
+    "application_deadline": "2026-12-15",
+    "test_date": "2027-01-09",
+    "classes_start": "2027-02-01",
+    "last_verified_at": "2026-09-01",
+    "status": "approved"
+  },
+  {
+    "key": "in-fall27",
+    "intake_name": "Fall 2027",
+    "programs": "all",
+    "applications_open": "2027-03-01",
+    "application_deadline": "2027-08-10",
+    "test_date": "2027-08-21",
+    "classes_start": "2027-09-13",
+    "last_verified_at": "2026-09-01",
+    "status": "approved"
+  }
+]

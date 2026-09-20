@@ -1,0 +1,14 @@
+{
+  "name": "university-ai-admission-assistant",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@9.15.0",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "validate:data": "pnpm --filter @uaa/shared validate:data",
+    "db:up": "docker compose up -d",
+    "db:migrate": "node scripts/migrate.mjs",
+    "db:test": "node scripts/db-test.mjs",
+    "typecheck": "pnpm -r typecheck"
+  }
+}

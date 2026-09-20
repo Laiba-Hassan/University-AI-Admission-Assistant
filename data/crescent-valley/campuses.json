@@ -1,0 +1,14 @@
+[
+  {
+    "key": "camp-lhr",
+    "name": "Lahore Main Campus",
+    "city": "Lahore",
+    "status": "approved"
+  },
+  {
+    "key": "camp-isb",
+    "name": "Islamabad Campus",
+    "city": "Islamabad",
+    "status": "approved"
+  }
+]

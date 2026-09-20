@@ -1,0 +1,20 @@
+{"id":"q001","script":"english","text":"What is the fee for BSCS at Lahore campus?","expects":{"kind":"fact","ref":"fee-01"},"notes":"starter; machine-written"}
+{"id":"q002","script":"roman_urdu","text":"BSCS ki fees kitni hai Lahore campus mein?","expects":{"kind":"fact","ref":"fee-01"},"notes":"starter; needs native review"}
+{"id":"q003","script":"urdu","text":"لاہور کیمپس میں بی ایس سی ایس کی فیس کتنی ہے؟","expects":{"kind":"fact","ref":"fee-01"},"notes":"starter; needs native review"}
+{"id":"q004","script":"roman_urdu","text":"admission ki last date kab hai","expects":{"kind":"fact","ref":"in-spring27"},"notes":"variant"}
+{"id":"q005","script":"roman_urdu","text":"admishan ki akhri tareekh kya hai","expects":{"kind":"fact","ref":"in-spring27"},"notes":"spelling variant of q004"}
+{"id":"q006","script":"roman_urdu","text":"scholarship milti hai kya?","expects":{"kind":"document","ref":"Scholarships and Financial Aid Explained"},"notes":""}
+{"id":"q007","script":"roman_urdu","text":"scolarship kesay milti he","expects":{"kind":"document","ref":"Scholarships and Financial Aid Explained"},"notes":"typo/variant"}
+{"id":"q008","script":"urdu","text":"کیا ہاسٹل کی سہولت موجود ہے؟","expects":{"kind":"faq","ref":"Do you offer hostel accommodation?"},"notes":""}
+{"id":"q009","script":"roman_urdu","text":"hostel hai kya larkiyon ke liye","expects":{"kind":"faq","ref":"Is there a separate hostel for female students?"},"notes":""}
+{"id":"q010","script":"roman_urdu","text":"fees qiston mein de sakte hain?","expects":{"kind":"faq","ref":"Can I pay the fee in instalments?"},"notes":""}
+{"id":"q011","script":"roman_urdu","text":"fee installment ka option hai","expects":{"kind":"faq","ref":"Can I pay the fee in instalments?"},"notes":"variant of q010"}
+{"id":"q012","script":"roman_urdu","text":"entry test kya hota hai","expects":{"kind":"faq","ref":"What is the Crescent Entry Test (CET)?"},"notes":""}
+{"id":"q013","script":"urdu","text":"داخلہ ٹیسٹ کب ہوگا؟","expects":{"kind":"fact","ref":"in-spring27"},"notes":""}
+{"id":"q014","script":"roman_urdu","text":"fsc ke baad kya apply kar sakta hun","expects":{"kind":"document","ref":"The Admission Process Step by Step"},"notes":"vague"}
+{"id":"q015","script":"roman_urdu","text":"international students k liye fees dollar mein hoti hain?","expects":{"kind":"document","ref":"Guide for International Students"},"notes":""}
+{"id":"q016","script":"english","text":"do u have evening classes","expects":{"kind":"faq","ref":"Do you offer evening or part-time programs?"},"notes":"chat-style"}
+{"id":"q017","script":"roman_urdu","text":"refund milta hai agar admission cancel karun","expects":{"kind":"document","ref":"Fee Payment, Instalments and Refund Policy"},"notes":""}
+{"id":"q018","script":"urdu","text":"کیا میں ٹرانسفر ہو سکتا ہوں؟","expects":{"kind":"faq","ref":"Can I transfer from another university?"},"notes":""}
+{"id":"q019","script":"roman_urdu","text":"BS data science ki fee?","expects":{"kind":"none","ref":"no-fee-data"},"notes":"unanswerable: BSDS has no fee data"}
+{"id":"q020","script":"roman_urdu","text":"bus service hai kia","expects":{"kind":"faq","ref":"Is there a bus or transport service?"},"notes":""}
