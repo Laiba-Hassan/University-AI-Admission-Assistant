@@ -9,3 +9,5 @@ data/bakeoff/voice/*.webm
 data/bakeoff/voice/*.m4a
 data/bakeoff/voice/*.mp4
 data/bakeoff/voice/*.wav
+.cache/
+apps/api/eval/results/

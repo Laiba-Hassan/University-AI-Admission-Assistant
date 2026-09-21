@@ -1,0 +1,31 @@
+{
+  "name": "@uaa/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file=../../.env src/server.ts",
+    "start": "tsx --env-file=../../.env src/server.ts",
+    "seed": "tsx --env-file=../../.env src/seed/seed.ts",
+    "recall": "tsx --env-file=../../.env src/seed/recall-check.ts",
+    "test": "tsx --env-file=../../.env --test --test-concurrency=1 test/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "eval": "tsx --env-file=../../.env eval/run-eval.ts",
+    "eval:build": "tsx eval/build-dataset.ts"
+  },
+  "dependencies": {
+    "@uaa/shared": "workspace:^",
+    "express": "4",
+    "jose": "^6.2.12",
+    "pg": "^8.23.0",
+    "pg-boss": "^12.33.2",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/express": "4",
+    "@types/node": "^22.0.0",
+    "@types/pg": "^8.23.1",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}

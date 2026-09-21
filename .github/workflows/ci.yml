@@ -1,0 +1,53 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm validate:data
+      - run: pnpm typecheck
+      # Postgres 16 + pgvector, same image and init roles as local development.
+      - run: docker compose up -d --wait
+      - run: pnpm db:migrate
+      # Cross-tenant isolation: SQL layer, then API layer (staff session, widget key, WhatsApp routing). Must stay green.
+      - run: pnpm db:test
+      - run: pnpm test
+
+  # PRD Section 5: a ~20-question smoke set runs on every pull request against the real model, and failures block
+  # merge (mark this job "required" in the branch protection rules). Skipped, with a warning, where the secret is not
+  # available (forks); pull requests from forks therefore do not exercise it.
+  eval-smoke:
+    runs-on: ubuntu-latest
+    needs: test
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+    steps:
+      - id: key
+        run: |
+          if [ -z "$GEMINI_API_KEY" ]; then echo "::warning::GEMINI_API_KEY secret is not set; skipping the eval smoke set"; echo "skip=1" >> "$GITHUB_OUTPUT"; fi
+      - if: steps.key.outputs.skip != '1'
+        uses: actions/checkout@v4
+      - if: steps.key.outputs.skip != '1'
+        uses: pnpm/action-setup@v4
+      - if: steps.key.outputs.skip != '1'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - if: steps.key.outputs.skip != '1'
+        run: pnpm install --frozen-lockfile
+      - if: steps.key.outputs.skip != '1'
+        run: docker compose up -d --wait && pnpm db:migrate && pnpm seed
+      - if: steps.key.outputs.skip != '1'
+        run: pnpm eval -- --tenant crescent-valley --set smoke --concurrency 2

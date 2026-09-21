@@ -1,5 +1,10 @@
 # Decision register — Phase 1 recommendations
 
+## Locked at the start of Phase 2
+- **Database environments — LOCKED:** Docker (`pgvector/pgvector:pg16`) for local development and CI (fast, resettable); Supabase for staging and for Auth login. The app only ever talks to Postgres through `DATABASE_URL`, so staging is a config change. Staging needs the same three roles as `infra/init-roles.sql` plus `app_queue` (see `scripts/migrate.mjs`).
+- **Embedding model — LOCKED: `gemini-embedding-001` at 768 dimensions** (matches `vector(768)`; vectors are L2-normalised in code because truncated outputs are not unit length; task types RETRIEVAL_DOCUMENT / RETRIEVAL_QUERY). Phase 2 recall check on the 20 starter queries (`pnpm recall`): **12/13 scored = 92% recall@3** (Roman Urdu 9/10, Urdu 2/2, English 1/1), after the tenant filter. The single miss is the deliberately vague q014. Caveat: 13 scored queries is too few to be conclusive; re-run on the full 100+ set and reopen this only if Roman Urdu recall@3 falls below 90%. Changing dimension later means a migration plus re-embedding, not just an edit.
+
+
 Status values follow PRD §10: Locked · Recommended default · Open. Items below are what Phase 1 must close. **Nothing here is locked until you confirm it.**
 
 ## 2. WhatsApp access route — DECIDED for this project: **Meta Cloud API with Meta's free test number**

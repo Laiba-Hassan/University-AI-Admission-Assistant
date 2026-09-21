@@ -30,7 +30,7 @@
     "welcome": {
       "english": "Welcome to Crescent Valley University admissions! How can I help?",
       "roman_urdu": "Crescent Valley University admissions mein khush amdeed! Main aap ki kya madad kar sakta hoon?",
-      "urdu": "میریڈین یونیورسٹی ایڈمشنز میں خوش آمدید! میں آپ کی کیا مدد کر سکتا ہوں؟"
+      "urdu": "کریسنٹ ویلی یونیورسٹی ایڈمشنز میں خوش آمدید! میں آپ کی کیا مدد کر سکتا ہوں؟"
     },
     "fallback": {
       "english": "I don't have that in my available university information. Admissions staff can help you.",

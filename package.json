@@ -3,12 +3,21 @@
   "private": true,
   "version": "0.1.0",
   "packageManager": "pnpm@9.15.0",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=22.12"
+  },
   "scripts": {
     "validate:data": "pnpm --filter @uaa/shared validate:data",
     "db:up": "docker compose up -d",
-    "db:migrate": "node scripts/migrate.mjs",
-    "db:test": "node scripts/db-test.mjs",
-    "typecheck": "pnpm -r typecheck"
+    "db:migrate": "node --env-file-if-exists=.env scripts/migrate.mjs",
+    "db:test": "node --env-file-if-exists=.env scripts/db-test.mjs",
+    "typecheck": "pnpm -r typecheck",
+    "api:dev": "pnpm --filter @uaa/api dev",
+    "seed": "pnpm --filter @uaa/api seed",
+    "recall": "pnpm --filter @uaa/api recall",
+    "test": "pnpm --filter @uaa/api test"
+  },
+  "devDependencies": {
+    "pg": "^8.23.0"
   }
 }
