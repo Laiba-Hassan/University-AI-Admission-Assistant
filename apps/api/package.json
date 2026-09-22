@@ -12,7 +12,9 @@
     "typecheck": "tsc --noEmit",
     "eval": "tsx --env-file-if-exists=../../.env eval/run-eval.ts",
     "eval:build": "tsx eval/build-dataset.ts",
-    "seed:staging": "tsx --env-file=../../.env.staging src/seed/seed.ts --staging"
+    "seed:staging": "tsx --env-file=../../.env.staging src/seed/seed.ts --staging",
+    "eval:review": "tsx eval/export-for-review.ts",
+    "eval:apply-review": "tsx eval/apply-review.ts"
   },
   "dependencies": {
     "@uaa/shared": "workspace:^",

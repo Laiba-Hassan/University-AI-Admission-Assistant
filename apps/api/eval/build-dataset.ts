@@ -3,7 +3,7 @@
 // Question wording (English, Roman Urdu, Urdu) is written here; Urdu / Roman Urdu items are flagged
 // review:"needs_native_review" until a native speaker signs them off.
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -14,7 +14,7 @@ export type Behavior = "answer" | "clarify" | "decline" | "handoff" | "lead" | "
 export interface EvalCase {
   id: string; tenant: string; category: string; script: "english" | "roman_urdu" | "urdu"; turns: string[];
   expect: { behavior: Behavior; amounts?: number[]; dates?: string[]; contains?: string[]; containsAny?: string[]; forbidAmounts?: number[]; mustNotContain: string[] };
-  heldout: boolean; smoke: boolean; review: "machine" | "needs_native_review";
+  heldout: boolean; smoke: boolean; review: "machine" | "needs_native_review" | "native_reviewed";
 }
 
 const heldout = (id: string) => parseInt(createHash("sha1").update(id).digest("hex").slice(0, 4), 16) % 5 === 0; // ~20%, stable
@@ -180,12 +180,24 @@ function build(tenant: string): EvalCase[] {
   return cases;
 }
 
+// Regenerating must not silently discard a native speaker's corrections (eval/apply-review.ts marks a case
+// "native_reviewed" and may have edited its wording). For any id that was already reviewed, keep the on-disk
+// version; only fall back to the freshly generated one if this run no longer produces that id at all (the
+// generator's own logic changed), and say so loudly rather than picking silently.
 const OUT = join(dirname(fileURLToPath(import.meta.url)), "datasets");
 mkdirSync(OUT, { recursive: true });
 for (const tenant of ["crescent-valley", "nexora"]) {
-  const cases = build(tenant);
-  writeFileSync(join(OUT, `${tenant}.jsonl`), cases.map((c) => JSON.stringify(c)).join("\n") + "\n");
+  const fresh = build(tenant);
+  const path = join(OUT, `${tenant}.jsonl`);
+  const existing: EvalCase[] = existsSync(path) ? readFileSync(path, "utf-8").split("\n").filter(Boolean).map((l) => JSON.parse(l)) : [];
+  const reviewed = new Map(existing.filter((c) => c.review === "native_reviewed").map((c) => [c.id, c]));
+  const freshIds = new Set(fresh.map((c) => c.id));
+  for (const [id, old] of reviewed) if (!freshIds.has(id)) console.warn(`${tenant}: WARNING - reviewed case ${id} no longer exists in the generator; its correction is being dropped: ${JSON.stringify(old.turns)}`);
+  const cases = fresh.map((c) => reviewed.get(c.id) ?? c);
+  const keptReview = cases.filter((c) => c.review === "native_reviewed").length;
+
+  writeFileSync(path, cases.map((c) => JSON.stringify(c)).join("\n") + "\n");
   const byCat = cases.reduce<Record<string, number>>((a, c) => ((a[c.category] = (a[c.category] ?? 0) + 1), a), {});
   const nonEn = cases.filter((c) => c.script !== "english").length;
-  console.log(`${tenant}: ${cases.length} cases ${JSON.stringify(byCat)}; Urdu/Roman Urdu ${nonEn} (${Math.round((100 * nonEn) / cases.length)}%); held-out ${cases.filter((c) => c.heldout).length}; smoke ${cases.filter((c) => c.smoke).length}`);
+  console.log(`${tenant}: ${cases.length} cases ${JSON.stringify(byCat)}; Urdu/Roman Urdu ${nonEn} (${Math.round((100 * nonEn) / cases.length)}%); held-out ${cases.filter((c) => c.heldout).length}; smoke ${cases.filter((c) => c.smoke).length}${keptReview ? `; kept ${keptReview} native-reviewed correction(s)` : ""}`);
 }

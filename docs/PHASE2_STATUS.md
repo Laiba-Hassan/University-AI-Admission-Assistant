@@ -10,7 +10,7 @@ Exit condition (PRD §14): *API returns correctly tenant-scoped data and the iso
 | Seed flagship tenant | ✅ | `pnpm seed` loads both demo tenants from `/data` (deterministic tenant ids, dev widget keys `wk_dev_crescent_valley` / `wk_dev_nexora`, placeholder WhatsApp ids `test-phone-<subdomain>`) |
 | Embed knowledge into pgvector | ✅ | Crescent Valley 42 chunks, Nexora 11 (documents chunked by heading, each FAQ its own chunk) |
 | Start metering `usage_events` | ✅ | `recordUsage()`; currently meters `knowledge_search` and `widget_session`. Chat/message events arrive with Phase 3/4 |
-| Cross-tenant isolation test in CI | ✅ | `.github/workflows/ci.yml` runs `db:test` (SQL) and `test` (44 API tests). **Not yet run on GitHub**: push the repo to see it go green there |
+| Cross-tenant isolation test in CI | ✅ | `.github/workflows/ci.yml` runs `db:test` (SQL) and `test` (96 API tests, grew with Phase 3). Green on GitHub as of commit `e160eb0` |
 
 ## Commands
 ```bash
@@ -28,8 +28,11 @@ pnpm api:dev                      # http://localhost:3001
 - Tenant context does not leak across pooled connections; A cannot insert, update or delete B's rows; identical embeddings in two tenants still return only the caller's chunk.
 - WhatsApp: signed message routes to the owning tenant; missing/wrong signature enqueues nothing; unknown or suspended tenant's number is ignored.
 
+## Staging (Supabase)
+Live as of this phase: schema migrated, all four roles correct, RLS isolation test passing against the hosted database, Data API disabled, both demo tenants seeded. See `docs/staging-setup.md`. Commands: `pnpm db:migrate:staging`, `pnpm db:test:staging`, `pnpm seed:staging` — each requires `.env.staging` (gitignored; copy from `.env.staging.example`) and refuses to run if the target doesn't match what `--staging` implies (catches both "forgot the flag" and "forgot to load the env file").
+
 ## Things to know
-- **Staff auth is verified but not yet wired to Supabase.** The API verifies a Supabase-style JWT (`SUPABASE_JWKS_URL` for staging, or `SUPABASE_JWT_SECRET`). Creating users, login UI, and linking `tenant_users.auth_user_id` are Phase 5. No staff user is seeded.
+- **Staff auth is verified but not yet wired to Supabase.** The API verifies a Supabase-style JWT (`SUPABASE_JWKS_URL` for staging, or `SUPABASE_JWT_SECRET`). Creating users, login UI, and linking `tenant_users.auth_user_id` are Phase 5. No staff user is seeded, on Docker or staging.
 - **Job payloads are outside RLS.** `pgboss.job` holds inbound WhatsApp payloads (student text, phone number) and is not tenant-isolated. It is reachable only by the queue role and kept 1 day after completion. Before Phase 6A, better to store the inbound message in `messages` (under RLS) first and enqueue only ids; decide then.
 - **Not in Phase 2 by design:** rate limits, Turnstile, monthly caps (Phase 4); webhook idempotency and delivery (6A).
 - `pnpm seed` deletes and recreates the two demo tenants (including their conversations); it refuses to run with `NODE_ENV=production`.
