@@ -1,0 +1,24 @@
+<!--
+  A minimal host page for manually testing the widget end to end (loader relay, Turnstile dev bypass, chat,
+  fact cards, feedback, handoff), independent of the real demo site. Not part of the build; not linked from anywhere.
+
+  It must be served over http from an origin the tenant's widget key allow-lists (crescent-valley's dev key allows
+  http://localhost:3000, among others -- see DEV_ORIGINS in apps/api/src/seed/seed.ts), since a file:// origin
+  cannot pass the widget key + origin check. To use it:
+
+    1. pnpm db:up && pnpm db:migrate && pnpm seed     (from the repo root, once)
+    2. pnpm api:dev                                   (repo root -- serves the API on :3001)
+    3. pnpm --filter @uaa/widget dev                   (serves the built widget + loader on :5174)
+    4. Serve THIS file's directory on :3000, e.g.:
+         node -e "require('http').createServer((q,r)=>require('fs').createReadStream('test-embed.html').pipe(r)).listen(3000)"
+    5. Open http://localhost:3000/ in a browser.
+-->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8" /><title>Demo host page (temporary, for manual widget testing)</title></head>
+<body style="font-family: sans-serif; padding: 40px;">
+<h1>Crescent Valley University (test host page)</h1>
+<p>This page exists only to manually verify the widget end to end. Not part of the demo site build.</p>
+<script src="http://localhost:5174/loader.js" data-widget-key="wk_dev_crescent_valley" data-api="http://localhost:3001" data-widget-origin="http://localhost:5174"></script>
+</body>
+</html>

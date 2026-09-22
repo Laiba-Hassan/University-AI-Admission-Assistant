@@ -12,3 +12,4 @@ data/bakeoff/voice/*.wav
 .cache/
 apps/api/eval/results/
 !.env.staging.example
+apps/widget/dist/

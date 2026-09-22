@@ -3,6 +3,7 @@ import { z } from "zod";
 import { handleMessage, requestHandoff } from "../agent/conversation.js";
 import type { LlmProvider } from "../agent/llm.js";
 import { verifyChallengePass } from "../challenge.js";
+import { publicCors } from "../cors.js";
 import { withTenant } from "../db.js";
 import { resolveWidgetTenant, tenantOf } from "../tenancy.js";
 import { publicRateLimit } from "./rate-limit-middleware.js";
@@ -20,7 +21,7 @@ const Handoff = z.object({ session_id: SESSION_ID, reason: z.string().trim().max
 // real API quota. Mirrors how whatsappRouter takes `enqueue` and widgetRouter takes a ChallengeVerifier.
 export function chatRouter(llmProvider?: LlmProvider) {
   const router = Router();
-  router.use(resolveWidgetTenant, publicRateLimit);
+  router.use(publicCors, resolveWidgetTenant, publicRateLimit);
 
   router.post("/", async (req, res) => {
     const body = Body.safeParse(req.body);

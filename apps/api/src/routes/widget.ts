@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { TurnstileVerifier, issueChallengePass, type ChallengeVerifier } from "../challenge.js";
 import { config } from "../config.js";
+import { publicCors } from "../cors.js";
 import { withTenant } from "../db.js";
 import { searchKnowledge } from "../knowledge.js";
 import { recordUsage } from "../usage.js";
@@ -16,7 +17,7 @@ export function widgetRouter(challenge?: ChallengeVerifier) {
   const usingDefaultVerifier = !challenge;
   const verifier = challenge ?? new TurnstileVerifier();
   const router = Router();
-  router.use(resolveWidgetTenant, publicRateLimit);
+  router.use(publicCors, resolveWidgetTenant, publicRateLimit);
 
   router.get("/config", async (req, res, next) => {
     try {
