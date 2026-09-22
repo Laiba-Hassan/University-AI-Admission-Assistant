@@ -15,7 +15,10 @@
     "api:dev": "pnpm --filter @uaa/api dev",
     "seed": "pnpm --filter @uaa/api seed",
     "recall": "pnpm --filter @uaa/api recall",
-    "test": "pnpm --filter @uaa/api test"
+    "test": "pnpm --filter @uaa/api test",
+    "db:migrate:staging": "node --env-file=.env.staging scripts/migrate.mjs --staging",
+    "db:test:staging": "node --env-file=.env.staging scripts/db-test.mjs --staging",
+    "seed:staging": "pnpm --filter @uaa/api seed:staging"
   },
   "devDependencies": {
     "pg": "^8.23.0"

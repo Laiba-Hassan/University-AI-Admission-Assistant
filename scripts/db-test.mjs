@@ -6,6 +6,8 @@ import pg from "pg";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const url = process.env.DATABASE_URL ?? "postgres://app_user:app_dev@localhost:5433/admission";
+if (process.argv.includes("--staging") && !process.env.DATABASE_URL) { console.error("--staging needs DATABASE_URL in .env.staging"); process.exit(1); }
+console.log(`target: ${new URL(url).hostname}`);
 let failed = false;
 for (const f of readdirSync(join(root, "db/tests")).filter((f) => f.endsWith(".sql")).sort()) {
   const c = new pg.Client({ connectionString: url });

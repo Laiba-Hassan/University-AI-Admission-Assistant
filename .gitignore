@@ -11,3 +11,4 @@ data/bakeoff/voice/*.mp4
 data/bakeoff/voice/*.wav
 .cache/
 apps/api/eval/results/
+!.env.staging.example

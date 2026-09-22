@@ -24,6 +24,14 @@ const run = async (url, fn) => {
 };
 const fail = (msg) => { console.error(msg); process.exit(1); };
 
+// --staging: run against the hosted database described in .env.staging. Every URL must be set explicitly so a missing
+// one can never silently fall back to the local Docker defaults.
+if (process.argv.includes("--staging")) {
+  for (const v of ["DATABASE_URL", "DATABASE_URL_MIGRATOR", "DATABASE_URL_QUEUE", "DATABASE_URL_ADMIN"])
+    if (!process.env[v]) fail(`--staging needs ${v} in .env.staging`);
+}
+console.log(`target: ${new URL(ADMIN_URL).hostname}${process.argv.includes("--staging") ? " (staging)" : ""}`);
+
 if (reset && !["localhost", "127.0.0.1", "::1"].includes(new URL(ADMIN_URL).hostname))
   fail("--reset drops the whole public schema and is only allowed against a local database.");
 

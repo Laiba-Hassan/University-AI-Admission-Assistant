@@ -11,7 +11,8 @@
     "test": "tsx --env-file-if-exists=../../.env --test --test-concurrency=1 test/*.test.ts",
     "typecheck": "tsc --noEmit",
     "eval": "tsx --env-file-if-exists=../../.env eval/run-eval.ts",
-    "eval:build": "tsx eval/build-dataset.ts"
+    "eval:build": "tsx eval/build-dataset.ts",
+    "seed:staging": "tsx --env-file=../../.env.staging src/seed/seed.ts --staging"
   },
   "dependencies": {
     "@uaa/shared": "workspace:^",

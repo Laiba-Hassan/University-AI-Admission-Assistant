@@ -136,6 +136,15 @@ export async function seedTenant(client: pg.Client, dir: string) {
 
 async function main() {
   if (process.env.NODE_ENV === "production") throw new Error("Refusing to seed demo data in production");
+  const staging = process.argv.includes("--staging");
+  const host = new URL(config.DATABASE_URL_MIGRATOR).hostname;
+  // --staging: run against the hosted database in .env.staging (a demo/browse copy, per docs/staging-setup.md).
+  // Guard against the opposite mistakes: forgetting --staging while .env.staging is loaded, and passing --staging
+  // while nothing overrode the local default (DATABASE_URL_MIGRATOR then silently falls back to Docker).
+  if (staging && ["localhost", "127.0.0.1", "::1"].includes(host)) throw new Error("--staging but DATABASE_URL_MIGRATOR points at localhost; check .env.staging is loaded");
+  if (!staging && !["localhost", "127.0.0.1", "::1"].includes(host)) throw new Error(`DATABASE_URL_MIGRATOR points at ${host}, not localhost; pass --staging if this is intentional`);
+  console.log(`target: ${host}${staging ? " (staging)" : ""}`);
+
   const client = new pg.Client({ connectionString: config.DATABASE_URL_MIGRATOR });
   await client.connect();
   try {
