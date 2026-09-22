@@ -44,6 +44,11 @@ export async function createTenant(client: pg.Client, label: string, feeAmount: 
   f.ids["usage-events"] = String((await client.query("INSERT INTO usage_events (tenant_id, event_type) VALUES ($1,'message') RETURNING id", [id])).rows[0].id);
   f.ids["channel-connections"] = await one("INSERT INTO channel_connections (tenant_id, channel, phone_number_id, token_secret_ref) VALUES ($1,'whatsapp',$2,'vault://secret') RETURNING id", [id, f.phoneNumberId]);
   await client.query("INSERT INTO widget_keys (tenant_id, public_key, allowed_origins) VALUES ($1,$2,$3)", [id, f.widgetKey, [f.origin]]);
+  // A generic message in every (key, language) pair so any code path that reads localized_messages (fallback,
+  // welcome, handoff, after_hours) has real text to return, instead of silently falling back to "".
+  for (const key of ["welcome", "fallback", "handoff", "after_hours"])
+    for (const language of ["english", "roman_urdu", "urdu"])
+      await client.query("INSERT INTO localized_messages (tenant_id, key, language, text) VALUES ($1,$2,$3,$4)", [id, key, language, `${label} ${key} (${language})`]);
   const doc = await one("INSERT INTO knowledge_documents (tenant_id, title, source_type, approved) VALUES ($1,$2,'policy',true) RETURNING id", [id, `Doc ${label}`]);
   f.ids["knowledge-documents"] = doc;
   // Identical embeddings in every tenant: a query must still only ever return its own tenant's chunk.

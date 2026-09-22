@@ -5,6 +5,7 @@ import { searchByVector } from "../knowledge.js";
 import { maskPii } from "./pii.js";
 import { lookupFacts, type FactsArgs } from "./facts.js";
 import type { ToolDecl } from "./llm.js";
+import { recordUsage } from "../usage.js";
 
 // The four agent tools (PRD Section 5). All are tenant-scoped: each opens its own withTenant() transaction, so RLS
 // applies, and the tenant id comes from the server-side context, never from model-supplied arguments.
@@ -142,6 +143,7 @@ export async function runTool(name: string, args: Record<string, unknown>, ctx: 
         await withTenant(ctx.tenantId, async (tx) => {
           await tx.query("UPDATE conversations SET status = 'needs_human' WHERE id = $1 AND status = 'open'", [ctx.conversationId]);
           await tx.query("INSERT INTO event_outbox (tenant_id, event_type, payload) VALUES (current_tenant_id(), 'handoff_requested', $1)", [JSON.stringify({ conversation_id: ctx.conversationId, reason })]);
+          await recordUsage(tx, "handoff_requested", ctx.channel);
         });
         return { kind: "handoff", result: { status: "handoff_requested", note: "Tell the student staff will reply during working hours." } };
       }

@@ -22,6 +22,19 @@ const Env = z.object({
   SUPABASE_JWT_SECRET: optional,
   WHATSAPP_APP_SECRET: optional,
   WHATSAPP_VERIFY_TOKEN: optional,
+
+  // Phase 4: public widget hardening (PRD Section 11, enforced "from the first public deployment").
+  TURNSTILE_SITE_KEY: optional,   // public; handed to the widget via /api/widget/config
+  TURNSTILE_SECRET_KEY: optional, // server-side verification; unset = challenge always fails closed
+  // Signs the short-lived "challenge passed" token a session presents to start a new conversation.
+  // A fixed dev-only default keeps local/test runs working without extra setup; production must override it.
+  CHALLENGE_SIGNING_SECRET: dev ? z.string().default("dev-only-challenge-secret-do-not-use-in-prod") : z.string().min(16),
+  // Hard cap on tokens (input+output, summed) spent on one conversation, so a single runaway thread can't run up cost.
+  MAX_CONVERSATION_TOKENS: z.coerce.number().int().positive().default(20_000),
+  // Per-window request caps for the public widget endpoints (PRD: per-IP / per-session / per-tenant).
+  RATE_LIMIT_PER_IP_PER_MINUTE: z.coerce.number().int().positive().default(20),
+  RATE_LIMIT_PER_SESSION_PER_MINUTE: z.coerce.number().int().positive().default(10),
+  RATE_LIMIT_PER_TENANT_PER_MINUTE: z.coerce.number().int().positive().default(300),
 });
 
 export const config = Env.parse(process.env);

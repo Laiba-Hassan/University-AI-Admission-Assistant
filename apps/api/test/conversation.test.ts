@@ -45,7 +45,8 @@ before(async () => {
   for (const f of [A, B]) {
     await ownerQ(f, "UPDATE tenants SET default_reply_script = 'english'");
     for (const [lang, text] of [["english", "FALLBACK-EN"], ["roman_urdu", "FALLBACK-RU"], ["urdu", "FALLBACK-UR"]])
-      await ownerQ(f, "INSERT INTO localized_messages (tenant_id, key, language, text) VALUES (current_tenant_id(), 'fallback', $1, $2)", [lang, text]);
+      // createTenant already seeds a generic 'fallback' row per language; overwrite with these exact-match sentinels.
+      await ownerQ(f, "INSERT INTO localized_messages (tenant_id, key, language, text) VALUES (current_tenant_id(), 'fallback', $1, $2) ON CONFLICT (tenant_id, key, language) DO UPDATE SET text = EXCLUDED.text", [lang, text]);
   }
 });
 after(async () => { await deleteTenants([A.id, B.id]); await db.pool.end(); });
