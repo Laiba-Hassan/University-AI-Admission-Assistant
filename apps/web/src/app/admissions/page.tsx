@@ -5,7 +5,20 @@ export default function AdmissionsPage() {
   const process = getDocument("02-admission-process");
   const intakes = getIntakes();
   const programs = getPrograms();
-  const faqs = getFaqs();
+  // The full 30 stay in /data (seeded to the DB, so the chat assistant still answers all of them); this page shows
+  // a curated set of 8 spanning the topics a prospective student asks about most, not just the first 8 in the file.
+  const FEATURED_FAQS = [
+    "How do I apply to Crescent Valley University?",
+    "What is the Crescent Entry Test (CET)?",
+    "Can I pay the fee in instalments?",
+    "Do you offer hostel accommodation?",
+    "Are Crescent Valley degrees HEC recognised?",
+    "Can international students apply?",
+    "What facilities are on campus?",
+    "Can I visit the campus before applying?",
+  ];
+  const allFaqs = getFaqs();
+  const faqs = FEATURED_FAQS.map((q) => allFaqs.find((f) => f.question === q)).filter((f): f is NonNullable<typeof f> => !!f);
 
   return (
     <>
@@ -71,7 +84,7 @@ export default function AdmissionsPage() {
         </div>
       </Section>
 
-      <Section>
+      <Section id="faq">
         <h2 className="text-2xl font-semibold text-gray-900">Frequently Asked Questions</h2>
         <div className="mt-5 max-w-3xl divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white">
           {faqs.map((f, i) => (

@@ -14,7 +14,9 @@ export default function HomePage() {
 
   return (
     <>
-      <section className="relative overflow-hidden border-b border-gray-200 bg-gray-900">
+      {/* Fills the screen on load, like a real university site's banner -- 100dvh minus the sticky nav's own
+          height, so hero + nav together occupy exactly one viewport (dvh accounts for mobile browser chrome). */}
+      <section className="relative flex min-h-[calc(100dvh-73px)] items-center overflow-hidden border-b border-gray-200 bg-gray-900">
         {/* No photography in a fictional demo tenant; a deep brand-colour gradient with a soft texture reads as
             institutional rather than templated, and avoids a fake "stock photo" of a campus that doesn't exist. */}
         <div className="uaa-hero-texture absolute inset-0 opacity-[0.15]" />
@@ -22,7 +24,7 @@ export default function HomePage() {
           className="absolute inset-0"
           style={{ background: "radial-gradient(1100px 480px at 15% -10%, var(--color-primary), transparent), radial-gradient(700px 420px at 100% 10%, var(--color-accent), transparent)" }}
         />
-        <div className="relative mx-auto max-w-6xl px-4 py-20 sm:py-28">
+        <div className="relative mx-auto w-full max-w-7xl px-6 py-20 lg:px-12 xl:px-16">
           {upcoming && (
             <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-medium text-white/90 backdrop-blur">
               <span className="h-1.5 w-1.5 rounded-full bg-accent" />

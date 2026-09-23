@@ -10,7 +10,7 @@ const COLUMNS = [
 export function Footer({ tenant }: { tenant: TenantInfo }) {
   return (
     <footer className="mt-20 border-t border-gray-200 bg-gray-50">
-      <div className="mx-auto max-w-6xl px-4 py-12">
+      <div className="mx-auto max-w-7xl px-6 py-12 lg:px-12 xl:px-16">
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
           <div>
             <div className="flex items-center gap-2.5">
