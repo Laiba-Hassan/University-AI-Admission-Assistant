@@ -18,7 +18,7 @@ export default function AdmissionsPage() {
       )}
 
       <Section>
-        <h2 className="text-2xl font-bold text-gray-900">Intake Dates</h2>
+        <h2 className="text-2xl font-semibold text-gray-900">Intake Dates</h2>
         <div className="mt-5 overflow-x-auto rounded-xl border border-gray-200 bg-white">
           <table className="w-full min-w-[640px] text-left text-sm">
             <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
@@ -52,7 +52,7 @@ export default function AdmissionsPage() {
       </Section>
 
       <Section>
-        <h2 className="text-2xl font-bold text-gray-900">Eligibility & Required Documents</h2>
+        <h2 className="text-2xl font-semibold text-gray-900">Eligibility & Required Documents</h2>
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
           {programs.map((p) => {
             const req = requirementFor(p.key);
@@ -72,7 +72,7 @@ export default function AdmissionsPage() {
       </Section>
 
       <Section>
-        <h2 className="text-2xl font-bold text-gray-900">Frequently Asked Questions</h2>
+        <h2 className="text-2xl font-semibold text-gray-900">Frequently Asked Questions</h2>
         <div className="mt-5 max-w-3xl divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white">
           {faqs.map((f, i) => (
             <details key={i} className="group px-5 py-4 open:bg-gray-50">

@@ -17,7 +17,7 @@ export default function ProgramsPage() {
           if (!list.length) return null;
           return (
             <div key={faculty.key} className="mb-10">
-              <h2 className="mb-4 text-xl font-bold text-gray-900">{faculty.name}</h2>
+              <h2 className="mb-4 text-xl font-semibold text-gray-900">{faculty.name}</h2>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {list.map((p) => {
                   const hasFees = feesForProgram(p.key).length > 0;

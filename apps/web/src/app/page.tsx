@@ -14,35 +14,50 @@ export default function HomePage() {
 
   return (
     <>
-      <section className="border-b border-gray-200 bg-gradient-to-b from-primary/10 to-white">
-        <div className="mx-auto max-w-6xl px-4 py-16 sm:py-20">
-          <p className="font-semibold text-accent">{tenant.branding.tagline}</p>
-          <h1 className="mt-2 max-w-3xl text-4xl font-bold text-gray-900 sm:text-5xl">{tenant.name}</h1>
-          <p className="mt-4 max-w-xl text-lg text-gray-600">{tenant.welcome_message}</p>
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Link href="/programs" className="rounded-lg bg-primary px-5 py-2.5 font-semibold text-white hover:opacity-90">
+      <section className="relative overflow-hidden border-b border-gray-200 bg-gray-900">
+        {/* No photography in a fictional demo tenant; a deep brand-colour gradient with a soft texture reads as
+            institutional rather than templated, and avoids a fake "stock photo" of a campus that doesn't exist. */}
+        <div className="uaa-hero-texture absolute inset-0 opacity-[0.15]" />
+        <div
+          className="absolute inset-0"
+          style={{ background: "radial-gradient(1100px 480px at 15% -10%, var(--color-primary), transparent), radial-gradient(700px 420px at 100% 10%, var(--color-accent), transparent)" }}
+        />
+        <div className="relative mx-auto max-w-6xl px-4 py-20 sm:py-28">
+          {upcoming && (
+            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-medium text-white/90 backdrop-blur">
+              <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+              Applications open for {upcoming.intake_name} — closes {dateLabel(upcoming.application_deadline)}
+            </div>
+          )}
+          <p className="font-semibold tracking-wide text-accent">{tenant.branding.tagline}</p>
+          <h1 className="mt-3 max-w-3xl font-heading text-4xl font-semibold leading-[1.1] tracking-tight text-white sm:text-6xl">
+            {tenant.name}
+          </h1>
+          <p className="mt-5 max-w-xl text-lg leading-relaxed text-gray-300">{tenant.welcome_message}</p>
+          <div className="mt-9 flex flex-wrap gap-3">
+            <Link href="/admissions" className="rounded-full bg-accent px-6 py-3 font-semibold text-gray-900 shadow-lg shadow-accent/20 transition hover:opacity-90">
+              Apply Now
+            </Link>
+            <Link href="/programs" className="rounded-full border border-white/25 bg-white/5 px-6 py-3 font-semibold text-white backdrop-blur transition hover:bg-white/10">
               Explore Programs
             </Link>
-            <Link href="/admissions" className="rounded-lg border border-gray-300 bg-white px-5 py-2.5 font-semibold text-gray-700 hover:bg-gray-50">
-              How to Apply
-            </Link>
           </div>
-          <p className="mt-6 text-sm text-gray-500">
-            Have a quick question? Use the chat assistant in the corner — it answers from our official program, fee
-            and deadline data, in English, Roman Urdu or Urdu.
+          <p className="mt-8 flex items-center gap-2 text-sm text-gray-400">
+            <span className="inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+            Have a quick question? Our AI Admissions Assistant (bottom-right) answers instantly in English, Roman Urdu or Urdu.
           </p>
         </div>
       </section>
 
-      <Section className="grid grid-cols-2 gap-4 py-10 sm:grid-cols-4">
+      <Section className="grid grid-cols-2 gap-4 py-12 sm:grid-cols-4">
         {[
           [faculties.length, "Faculties"],
           [programs.length, "Programs"],
           [campuses.length, "Campuses"],
-          [tenant.default_reply_script === "roman_urdu" ? "3" : "3", "Languages supported"],
+          ["3", "Languages supported"],
         ].map(([n, label]) => (
           <Card key={label as string} className="text-center">
-            <div className="text-3xl font-bold text-primary">{n}</div>
+            <div className="font-heading text-3xl font-semibold text-primary">{n}</div>
             <div className="mt-1 text-sm text-gray-500">{label}</div>
           </Card>
         ))}
@@ -58,7 +73,7 @@ export default function HomePage() {
               </p>
               <p className="text-sm text-gray-500">Entry test: {dateLabel(upcoming.test_date)} · Classes start: {dateLabel(upcoming.classes_start)}</p>
             </div>
-            <Link href="/admissions" className="whitespace-nowrap rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:opacity-90">
+            <Link href="/admissions" className="whitespace-nowrap rounded-full bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:opacity-90">
               See admission steps
             </Link>
           </Card>
@@ -74,7 +89,7 @@ export default function HomePage() {
 
       <Section>
         <div className="flex items-end justify-between">
-          <h2 className="text-2xl font-bold text-gray-900">Faculties</h2>
+          <h2 className="text-2xl font-semibold text-gray-900">Faculties</h2>
           <Link href="/faculties" className="text-sm font-medium text-primary hover:underline">View all</Link>
         </div>
         <div className="mt-5 grid gap-4 sm:grid-cols-3">

@@ -49,7 +49,7 @@ export default function FeesPage() {
           return (
             <div key={p.key} id={p.key} className="mb-10 scroll-mt-20">
               <div className="mb-3 flex items-center gap-2">
-                <h2 className="text-xl font-bold text-gray-900">{p.name}</h2>
+                <h2 className="text-xl font-semibold text-gray-900">{p.name}</h2>
                 <Pill>{p.code}</Pill>
               </div>
               <FeeTable rows={rows} />
@@ -68,7 +68,7 @@ export default function FeesPage() {
 
         {general.length > 0 && (
           <div className="mb-10">
-            <h2 className="mb-3 text-xl font-bold text-gray-900">Other Fees (Hostel &amp; General)</h2>
+            <h2 className="mb-3 text-xl font-semibold text-gray-900">Other Fees (Hostel &amp; General)</h2>
             <FeeTable rows={general} />
           </div>
         )}

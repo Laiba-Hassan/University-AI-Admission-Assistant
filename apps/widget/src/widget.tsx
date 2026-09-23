@@ -65,7 +65,6 @@ function App() {
       document.documentElement.style.setProperty("--uaa-primary", cfg.branding.primary ?? "#0B3D91");
       document.documentElement.style.setProperty("--uaa-accent", cfg.branding.accent ?? "#F2A900");
       setAfterHours(isWithinWorkingHours(cfg.working_hours as never) === false);
-      setMessages([{ id: uid(), role: "system", text: cfg.welcome_message, shown: cfg.welcome_message, language: cfg.default_reply_script }]);
       setPhase("ready");
 
       // No Cloudflare site key configured (local/dev): the backend's own dev bypass ignores the token value, so a
@@ -171,7 +170,7 @@ function App() {
   if (phase === "unavailable") {
     return (
       <div class="uaa-root">
-        <Header config={config} onHandoff={handoff} />
+        <Header config={config} />
         <div class="uaa-unavailable">
           <p>This assistant is unavailable right now.</p>
           <p>Please contact admissions directly, or try again shortly.</p>
@@ -182,10 +181,11 @@ function App() {
 
   return (
     <div class="uaa-root">
-      <Header config={config} onHandoff={handoff} />
+      <Header config={config} />
       {afterHours && <div class="uaa-banner">Our office is currently closed. I can still answer questions; staff will follow up during working hours.</div>}
       <div class="uaa-consent">This is an AI assistant. Messages are stored, and voice notes are transcribed and not kept.</div>
       <div class="uaa-body" ref={bodyRef}>
+        <WelcomeCard config={config} />
         {messages.map((m) => (
           <div key={m.id} class={`uaa-row uaa-row-${m.role}`}>
             <div class={`uaa-bubble uaa-bubble-${m.role}`} dir={m.language === "urdu" ? "rtl" : "ltr"}>
@@ -225,23 +225,49 @@ function App() {
       ) : (
         <form class="uaa-inputbar" onSubmit={(e) => { e.preventDefault(); send(input); }}>
           <input value={input} onInput={(e) => setInput((e.target as HTMLInputElement).value)} placeholder="Ask about programs, fees, deadlines…" disabled={sending} />
-          <button type="submit" disabled={sending || !input.trim()} aria-label="Send">➤</button>
+          <button type="submit" disabled={sending || !input.trim()} aria-label="Send">
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+          </button>
         </form>
       )}
-      <button class="uaa-handoff" onClick={handoff}>Talk to admissions</button>
+      <button class="uaa-handoff" onClick={handoff}>
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        Talk to admissions staff
+      </button>
     </div>
   );
 }
 
-function Header({ config, onHandoff }: { config: TenantConfig | null; onHandoff: () => void }) {
+const Sparkle = ({ size = 16 }: { size?: number }) => (
+  <svg viewBox="0 0 24 24" width={size} height={size} fill="currentColor"><path d="M12 2.5l1.9 5.2 5.2 1.9-5.2 1.9-1.9 5.2-1.9-5.2-5.2-1.9 5.2-1.9L12 2.5z" /></svg>
+);
+
+function Header({ config }: { config: TenantConfig | null }) {
   return (
     <div class="uaa-header">
-      {config?.branding.logo && <img src={config.branding.logo} alt="" class="uaa-logo" />}
+      {config?.branding.logo ? <img src={config.branding.logo} alt="" class="uaa-logo" /> : (
+        <div class="uaa-logo uaa-logo-fallback"><Sparkle size={18} /></div>
+      )}
       <div class="uaa-header-text">
-        <div class="uaa-header-name">{config?.name ?? "Admissions Assistant"}</div>
-        {config?.branding.tagline && <div class="uaa-header-tagline">{config.branding.tagline}</div>}
+        <div class="uaa-header-name">{config?.name ?? "Admissions"}</div>
+        <div class="uaa-header-badge"><Sparkle size={11} /> AI Admissions Assistant</div>
       </div>
-      <button class="uaa-close" aria-label="Close" onClick={() => tellParent({ channel: "uaa-widget", type: "close" } as never)}>✕</button>
+      <button class="uaa-close" aria-label="Close" onClick={() => tellParent({ channel: "uaa-widget", type: "close" } as never)}>
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+  );
+}
+
+function WelcomeCard({ config }: { config: TenantConfig | null }) {
+  if (!config) return null;
+  return (
+    <div class="uaa-welcome">
+      <div class="uaa-welcome-icon"><Sparkle size={18} /></div>
+      <div>
+        <div class="uaa-welcome-title">Welcome to {config.name}</div>
+        <p class="uaa-welcome-text">{config.welcome_message}</p>
+      </div>
     </div>
   );
 }
