@@ -13,3 +13,6 @@ data/bakeoff/voice/*.wav
 apps/api/eval/results/
 !.env.staging.example
 apps/widget/dist/
+apps/web/.next/
+apps/web/next-env.d.ts
+*.tsbuildinfo

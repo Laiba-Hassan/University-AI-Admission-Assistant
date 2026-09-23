@@ -20,7 +20,9 @@
     "db:test:staging": "node --env-file=.env.staging scripts/db-test.mjs --staging",
     "seed:staging": "pnpm --filter @uaa/api seed:staging",
     "widget:dev": "pnpm --filter @uaa/widget dev",
-    "widget:build": "pnpm --filter @uaa/widget build"
+    "widget:build": "pnpm --filter @uaa/widget build",
+    "web:dev": "pnpm --filter @uaa/web dev",
+    "web:build": "pnpm --filter @uaa/web build"
   },
   "devDependencies": {
     "pg": "^8.23.0"
