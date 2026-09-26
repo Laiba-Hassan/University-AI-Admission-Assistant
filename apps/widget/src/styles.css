@@ -20,7 +20,6 @@ html, body { margin: 0; height: 100%; font-family: -apple-system, BlinkMacSystem
 .uaa-close:hover { opacity: 1; background: rgba(255,255,255,.22); }
 
 .uaa-banner { background: #FEF3C7; color: #92400E; font-size: 12px; padding: 7px 14px; }
-.uaa-consent { font-size: 11px; color: var(--uaa-muted); padding: 7px 16px; border-bottom: 1px solid var(--uaa-border); background: var(--uaa-surface); }
 
 .uaa-body { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
 .uaa-row { display: flex; flex-direction: column; }

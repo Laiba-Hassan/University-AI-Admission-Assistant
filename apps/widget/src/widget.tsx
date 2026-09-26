@@ -183,7 +183,6 @@ function App() {
     <div class="uaa-root">
       <Header config={config} />
       {afterHours && <div class="uaa-banner">Our office is currently closed. I can still answer questions; staff will follow up during working hours.</div>}
-      <div class="uaa-consent">This is an AI assistant. Messages are stored, and voice notes are transcribed and not kept.</div>
       <div class="uaa-body" ref={bodyRef}>
         <WelcomeCard config={config} />
         {messages.map((m) => (
@@ -250,7 +249,7 @@ function Header({ config }: { config: TenantConfig | null }) {
       )}
       <div class="uaa-header-text">
         <div class="uaa-header-name">{config?.name ?? "Admissions"}</div>
-        <div class="uaa-header-badge"><Sparkle size={11} /> AI Admissions Assistant</div>
+        <div class="uaa-header-badge">AI Admissions Assistant</div>
       </div>
       <button class="uaa-close" aria-label="Close" onClick={() => tellParent({ channel: "uaa-widget", type: "close" } as never)}>
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
@@ -263,7 +262,6 @@ function WelcomeCard({ config }: { config: TenantConfig | null }) {
   if (!config) return null;
   return (
     <div class="uaa-welcome">
-      <div class="uaa-welcome-icon"><Sparkle size={18} /></div>
       <div>
         <div class="uaa-welcome-title">Welcome to {config.name}</div>
         <p class="uaa-welcome-text">{config.welcome_message}</p>
