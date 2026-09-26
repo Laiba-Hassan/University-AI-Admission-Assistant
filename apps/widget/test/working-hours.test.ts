@@ -21,6 +21,8 @@ describe("isWithinWorkingHours", () => {
     assert.equal(isWithinWorkingHours(undefined), undefined);
     assert.equal(isWithinWorkingHours({}), undefined);
     assert.equal(isWithinWorkingHours({ tz: "Not/AZone", mon_fri: "09:00-17:00" }), undefined);
-    assert.equal(isWithinWorkingHours({ tz: "Asia/Karachi", mon_fri: "9am-5pm" }), undefined);
+    // Fixed to a Monday (see the first test above) so this doesn't depend on which weekday CI happens to run on --
+    // otherwise a real Sat/Sun "now" hits the "explicitly closed that day" branch before the regex is ever checked.
+    assert.equal(isWithinWorkingHours({ tz: "Asia/Karachi", mon_fri: "9am-5pm" }, new Date("2026-09-21T05:00:00Z")), undefined);
   });
 });
