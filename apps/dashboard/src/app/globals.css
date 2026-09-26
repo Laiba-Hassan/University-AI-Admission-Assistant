@@ -1,0 +1,74 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Enrollium design tokens (see references/Enrollium_Design_Documentation.pdf).
+   Light is the default; dark is opted into via [data-theme="dark"] on <html>, toggled and persisted
+   client-side (Settings > Branding > "Dashboard appearance") rather than following prefers-color-scheme,
+   matching the reference's explicit light/dark toggle in the top bar. */
+:root {
+  --bg: #f6f4ee;
+  --surface: #ffffff;
+  --sidebar-bg: #efeae0;
+  --tint: #efeae0;
+  --panel: #f7f6f1;
+  --line: #d9d2c4;
+  --ink: #211e1b;
+  --ink-2: #6b6459;
+  --muted: #948c7e;
+  --accent: #c15f3c;
+  --series-blue: #2a78d6;
+  --series-orange: #eb6834;
+  --series-aqua: #1baf7a;
+  /* Status chips: green/red are fixed and never shift with theme; draft/neutral use ink/accent so they do. */
+  --chip-approved-bg: #dcf5e3;
+  --chip-approved-fg: #1f7a3d;
+  --chip-rejected-bg: #fbe0dc;
+  --chip-rejected-fg: #b8442e;
+}
+
+[data-theme="dark"] {
+  --bg: #1c1a17;
+  --surface: #242220;
+  --sidebar-bg: #141210;
+  --tint: #2e2a24;
+  --panel: #2a2723;
+  --line: #4a453d;
+  --ink: #f3efe8;
+  --ink-2: #c9c2b4;
+  --muted: #a39b8c;
+  --accent: #e2825b;
+  --series-blue: #3987e5;
+  --series-orange: #d95926;
+  --series-aqua: #199e70;
+  --chip-approved-bg: #1e3b28;
+  --chip-approved-fg: #7fd99a;
+  --chip-rejected-bg: #402420;
+  --chip-rejected-fg: #e9897a;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+}
+
+/* Status chips (Component 04 in the design doc): always paired with text, never color alone. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.chip-approved { background: var(--chip-approved-bg); color: var(--chip-approved-fg); }
+.chip-rejected { background: var(--chip-rejected-bg); color: var(--chip-rejected-fg); }
+.chip-draft { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
+.chip-neutral { background: var(--tint); color: var(--ink-2); }
+
+/* Cards float on a 1px border on the warm background, never a drop shadow (reserved for sidebar hover-expand). */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}

@@ -4,6 +4,7 @@ import type { ChallengeVerifier } from "./challenge.js";
 import { pool } from "./db.js";
 import type { Enqueue } from "./queue.js";
 import { chatRouter } from "./routes/chat.js";
+import { publicStaffRouter } from "./routes/public-staff.js";
 import { staffRouter } from "./routes/staff.js";
 import { widgetRouter } from "./routes/widget.js";
 import { whatsappRouter } from "./routes/whatsapp.js";
@@ -23,6 +24,7 @@ export function createApp(enqueue: Enqueue, challenge?: ChallengeVerifier, llmPr
     try { await pool.query("SELECT 1"); res.json({ ok: true }); } catch { res.status(503).json({ ok: false }); }
   });
   app.use("/api/v1", staffRouter);
+  app.use("/api/public", publicStaffRouter);
   app.use("/api/widget", widgetRouter(challenge));
   app.use("/api/chat", chatRouter(llmProvider));
 

@@ -17,3 +17,20 @@ export const publicCors: RequestHandler = (req, res, next) => {
   if (req.method === "OPTIONS") { res.status(204).end(); return; }
   next();
 };
+
+// CORS for the staff dashboard and platform-admin apps. Staff auth is a Bearer token (Supabase Auth JWT) read
+// from the Authorization header, never a cookie, so reflecting Origin is safe here too: there is no ambient
+// credential for a hostile page to ride along on, and the actual authorization decision stays with
+// resolveStaffTenant's JWT verification, not with this header.
+export const staffCors: RequestHandler = (req, res, next) => {
+  const origin = req.header("origin");
+  if (origin) {
+    res.setHeader("access-control-allow-origin", origin);
+    res.setHeader("vary", "Origin");
+  }
+  res.setHeader("access-control-allow-methods", "GET, POST, PATCH, DELETE");
+  res.setHeader("access-control-allow-headers", "content-type, authorization, x-tenant-id");
+  res.setHeader("access-control-max-age", "600");
+  if (req.method === "OPTIONS") { res.status(204).end(); return; }
+  next();
+};

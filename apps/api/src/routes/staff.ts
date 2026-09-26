@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { staffCors } from "../cors.js";
 import { withTenant } from "../db.js";
 import { searchKnowledge } from "../knowledge.js";
 import { requireRole, resolveStaffTenant, tenantOf } from "../tenancy.js";
@@ -20,6 +21,7 @@ const RESOURCES: Record<string, { table: string; columns: string; order: string 
   conversations: { table: "conversations", columns: "*", order: "last_message_at DESC" },
   messages: { table: "messages", columns: "*", order: '"timestamp" DESC' },
   leads: { table: "leads", columns: "*", order: "created_at DESC" },
+  "unanswered-questions": { table: "unanswered_questions", columns: "id, tenant_id, question_text, cluster_id, count, first_seen, last_seen, status, linked_faq_id", order: "last_seen DESC" }, // never the raw embedding
   "usage-events": { table: "usage_events", columns: "*", order: "id DESC" },
   "channel-connections": { table: "channel_connections", columns: "id, tenant_id, channel, phone_number_id, waba_id, display_number, template_status, status, connected_at", order: "id" }, // never token_secret_ref
 };
@@ -27,7 +29,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const BIGINT = /^[0-9]{1,18}$/; // usage_events uses a bigint identity id
 
 export const staffRouter = Router();
-staffRouter.use(resolveStaffTenant, requireRole("admin", "editor", "viewer"));
+staffRouter.use(staffCors, resolveStaffTenant, requireRole("admin", "editor", "viewer"));
 
 staffRouter.get("/me", (req, res) => res.json({ tenantId: req.tenant!.id, role: req.tenant!.role }));
 
