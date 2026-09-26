@@ -15,6 +15,7 @@
     "api:dev": "pnpm --filter @uaa/api dev",
     "seed": "pnpm --filter @uaa/api seed",
     "recall": "pnpm --filter @uaa/api recall",
+    "eval": "pnpm --filter @uaa/api eval",
     "test": "pnpm --filter @uaa/api test && pnpm --filter @uaa/widget test",
     "db:migrate:staging": "node --env-file=.env.staging scripts/migrate.mjs --staging",
     "db:test:staging": "node --env-file=.env.staging scripts/db-test.mjs --staging",
