@@ -2,7 +2,10 @@ import { Router } from "express";
 import { staffCors } from "../cors.js";
 import { withTenant } from "../db.js";
 import { searchKnowledge } from "../knowledge.js";
+import { getOverview, type Period } from "../overview.js";
 import { requireRole, resolveStaffTenant, tenantOf } from "../tenancy.js";
+
+const PERIODS = new Set<Period>(["7d", "30d", "90d"]);
 
 // Staff dashboard read API. Deliberately no `WHERE tenant_id = ...` here: isolation comes from RLS under the
 // per-transaction tenant context, so the API tests exercise the database guarantee itself, not app-side filtering.
@@ -31,7 +34,19 @@ const BIGINT = /^[0-9]{1,18}$/; // usage_events uses a bigint identity id
 export const staffRouter = Router();
 staffRouter.use(staffCors, resolveStaffTenant, requireRole("admin", "editor", "viewer"));
 
-staffRouter.get("/me", (req, res) => res.json({ tenantId: req.tenant!.id, role: req.tenant!.role }));
+staffRouter.get("/me", async (req, res, next) => {
+  try {
+    const name = await withTenant(tenantOf(req), async (tx) => (await tx.query("SELECT name FROM tenants")).rows[0]?.name as string | undefined);
+    res.json({ tenantId: req.tenant!.id, role: req.tenant!.role, tenantName: name });
+  } catch (err) { next(err); }
+});
+
+staffRouter.get("/overview", async (req, res, next) => {
+  const period = (typeof req.query.period === "string" && PERIODS.has(req.query.period as Period) ? req.query.period : "30d") as Period;
+  try {
+    res.json(await withTenant(tenantOf(req), (tx) => getOverview(tx, period)));
+  } catch (err) { next(err); }
+});
 
 staffRouter.get("/knowledge/search", async (req, res, next) => {
   const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
