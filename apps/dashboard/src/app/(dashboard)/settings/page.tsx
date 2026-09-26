@@ -1,2 +1,2 @@
-import { ComingSoon } from "@/components/ComingSoon";
-export default function Page() { return <ComingSoon title="Settings" />; }
+import { redirect } from "next/navigation";
+export default function Page() { redirect("/settings/channels"); }
