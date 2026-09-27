@@ -277,7 +277,7 @@ function App() {
       <Header config={config} />
       {afterHours && <div class="uaa-banner">Our office is currently closed. I can still answer questions; staff will follow up during working hours.</div>}
       <div class="uaa-body" ref={bodyRef}>
-        <WelcomeCard config={config} micSupported={micSupported && !micDenied} />
+        <WelcomeCard config={config} />
         {messages.map((m) => (
           <div key={m.id} class={`uaa-row uaa-row-${m.role}`}>
             <div class={`uaa-bubble uaa-bubble-${m.role}`} dir={m.language === "urdu" ? "rtl" : "ltr"}>
@@ -372,15 +372,13 @@ function Header({ config }: { config: TenantConfig | null }) {
   );
 }
 
-function WelcomeCard({ config, micSupported }: { config: TenantConfig | null; micSupported: boolean }) {
+function WelcomeCard({ config }: { config: TenantConfig | null }) {
   if (!config) return null;
   return (
     <div class="uaa-welcome">
       <div>
         <div class="uaa-welcome-title">Welcome to {config.name}</div>
         <p class="uaa-welcome-text">{config.welcome_message}</p>
-        {/* PRD 6B: "The first-open notice says voice recordings are transcribed and not kept." */}
-        {micSupported && <p class="uaa-welcome-voice-notice">🎙️ You can also ask by voice — recordings are transcribed and not kept.</p>}
       </div>
     </div>
   );

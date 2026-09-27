@@ -61,7 +61,7 @@ export function Sidebar({ onOpenInbox }: { onOpenInbox?: () => void }) {
                 <Icon />
                 <span className="side-label">{label}</span>
                 {badge > 0 && (
-                  <span className="side-label ml-auto flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-semibold text-white">{badge}</span>
+                  <span className="side-badge ml-auto h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-semibold leading-none text-white">{badge}</span>
                 )}
               </Link>
             );

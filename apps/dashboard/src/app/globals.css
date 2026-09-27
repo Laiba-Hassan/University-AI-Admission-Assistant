@@ -95,6 +95,11 @@ body {
 }
 .side-label { display: none; white-space: nowrap; }
 .side-rail:hover .side-label { display: revert; }
+/* Same collapsed/hover-reveal behavior as .side-label, but "revert" there resets a <span> to inline, which
+   broke the nav badge's Tailwind flex/items-center/justify-center centering -- the number sat off-center
+   inside the pill. This keeps it as flex (matching the classes already on the element) instead. */
+.side-badge { display: none; }
+.side-rail:hover .side-badge { display: flex; }
 .nav-item {
   display: flex;
   align-items: center;
