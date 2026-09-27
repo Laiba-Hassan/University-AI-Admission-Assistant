@@ -226,6 +226,20 @@ platformRouter.patch("/tenants/:id/support-notes/:noteId", async (req, res, next
   } catch (err) { next(err); }
 });
 
+// ---------------------------------------------------------------- Cross-tenant support notes (Tenant Support page)
+platformRouter.get("/support-notes", async (req, res, next) => {
+  const status = typeof req.query.status === "string" ? req.query.status : "open";
+  try {
+    const tenants = (await withoutTenant((tx) => tx.query(`SELECT id, name FROM platform_list_tenants()`))).rows as { id: string; name: string }[];
+    const perTenant = await Promise.all(tenants.map(async (t) => {
+      const rows = (await withTenant(t.id, (tx) =>
+        tx.query(`SELECT id, note, status, created_by, created_at, resolved_at FROM tenant_support_notes WHERE status = $1 ORDER BY created_at DESC`, [status]))).rows;
+      return rows.map((r) => ({ ...r, tenant_id: t.id, tenant_name: t.name }));
+    }));
+    res.json({ notes: perTenant.flat().sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()) });
+  } catch (err) { next(err); }
+});
+
 // ---------------------------------------------------------------- Billing overview
 platformRouter.get("/billing", async (_req, res, next) => {
   try {
