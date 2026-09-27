@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { pollAlerts } from "../alerts.js";
 import { handleMessage } from "../agent/conversation.js";
+import { deliverStaffReplyOverWhatsApp } from "../whatsapp/staff-reply.js";
 import { assignConversationToSelf, escalateConversation, getConversationDetail, listConversations, sendStaffReply, setConversationStatus } from "../conversations.js";
 import { staffCors } from "../cors.js";
 import { withTenant } from "../db.js";
@@ -110,9 +111,16 @@ staffRouter.post("/conversations/:id/reply", requireRole("admin", "editor"), asy
   const body = Reply.safeParse(req.body);
   if (!body.success) return res.status(400).json({ error: "invalid_request" });
   try {
-    const msg = await withTenant(tenantOf(req), (tx) => sendStaffReply(tx, req.params.id!, body.data.text));
-    if (!msg) return res.status(404).json({ error: "not_found" });
-    res.status(201).json(msg);
+    const result = await withTenant(tenantOf(req), async (tx) => {
+      const msg = await sendStaffReply(tx, req.params.id!, body.data.text);
+      if (!msg) return null;
+      // WhatsApp two-way handoff (PRD 6A/6.3): a web conversation, or one with no WhatsApp connection, makes
+      // this a no-op -- the reply already exists for the dashboard either way.
+      const delivery = await deliverStaffReplyOverWhatsApp(tx, req.params.id!, body.data.text);
+      return { msg, delivery };
+    });
+    if (!result) return res.status(404).json({ error: "not_found" });
+    res.status(201).json({ ...result.msg, delivery: result.delivery });
   } catch (err) { next(err); }
 });
 

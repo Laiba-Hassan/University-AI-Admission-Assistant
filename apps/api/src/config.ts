@@ -22,6 +22,17 @@ const Env = z.object({
   SUPABASE_JWT_SECRET: optional,
   WHATSAPP_APP_SECRET: optional,
   WHATSAPP_VERIFY_TOKEN: optional,
+  WHATSAPP_GRAPH_BASE_URL: z.string().default("https://graph.facebook.com/v21.0"),
+
+  // AES-256-GCM key (32 raw bytes, base64) for channel_connections.token_secret_ref -- see src/secrets.ts. A
+  // fixed dev-only default keeps local/test runs working without extra setup; production must override it.
+  SECRETS_ENCRYPTION_KEY: dev ? z.string().default("9OU2nNQ5ef9vTTO+pgWgvLV07ZqHtRRRlqaR1K6nzrY=") : z.string().min(32),
+
+  // Web push (Phase 6A desktop/PWA handoff & lead alerts). Unset in dev = push silently no-ops instead of
+  // failing; generate a real pair for production with `npx web-push generate-vapid-keys`.
+  VAPID_PUBLIC_KEY: optional,
+  VAPID_PRIVATE_KEY: optional,
+  VAPID_SUBJECT: z.string().default("mailto:admin@enrollium.app"),
 
   // Phase 4: public widget hardening (PRD Section 11, enforced "from the first public deployment").
   TURNSTILE_SITE_KEY: optional,   // public; handed to the widget via /api/widget/config
