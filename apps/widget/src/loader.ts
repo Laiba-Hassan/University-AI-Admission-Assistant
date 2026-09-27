@@ -133,10 +133,13 @@ function boot(opts: Options) {
     else if (msg.type === "fetch") {
       let status = 0, body: unknown = null;
       try {
+        // A binary upload (PRD 6B's mic button, `bodyContentType` set) skips JSON.stringify entirely -- `body` is
+        // already the real ArrayBuffer to send, with its own Content-Type instead of "application/json".
+        const isBinary = typeof msg.bodyContentType === "string";
         const res = await fetch(`${opts.apiOrigin}${msg.path}`, {
           method: msg.method,
-          headers: { "content-type": "application/json", "x-widget-key": opts.widgetKey, ...msg.headers },
-          body: msg.body !== undefined ? JSON.stringify(msg.body) : undefined,
+          headers: { "content-type": isBinary ? msg.bodyContentType! : "application/json", "x-widget-key": opts.widgetKey, ...msg.headers },
+          body: isBinary ? (msg.body as ArrayBuffer) : msg.body !== undefined ? JSON.stringify(msg.body) : undefined,
         });
         status = res.status;
         body = await res.json().catch(() => null);

@@ -24,7 +24,9 @@ export interface ChatInput {
   today?: string;              // injectable for deterministic evals
   provider?: LlmProvider;
   model?: string;
-  forcedLanguage?: Lang;       // student picked a language chip in the widget; skips auto-detect for this turn
+  forcedLanguage?: Lang;       // student picked a language chip, or a transcribed voice message's detected script
+  contentType?: "text" | "voice"; // PRD 6B: a transcribed voice note/mic recording is stored as content_type='voice'
+  audioSeconds?: number;           // the source recording's duration, for content_type='voice' messages only
 }
 export interface FactCard { type: "fee" | "intake"; label: string; value: string; as_of: string | null; stale?: boolean }
 export interface ChatOutput {
@@ -111,11 +113,13 @@ export async function handleMessage(input: ChatInput): Promise<ChatOutput> {
     const language: Detected = input.forcedLanguage ?? detectLanguage(input.text) ?? previousLang ?? (tenant.default_reply_script as Lang);
 
     const inserted = await tx.query(
-      `INSERT INTO messages (tenant_id, conversation_id, role, content, detected_language, channel_message_id)
-       VALUES (current_tenant_id(), $1, 'user', $2, $3, $4) ON CONFLICT (tenant_id, channel_message_id) DO NOTHING RETURNING id`,
-      [conv.conversationId, masked, language, input.channelMessageId ?? null]);
+      `INSERT INTO messages (tenant_id, conversation_id, role, content, detected_language, channel_message_id, content_type, audio_seconds)
+       VALUES (current_tenant_id(), $1, 'user', $2, $3, $4, $5, $6) ON CONFLICT (tenant_id, channel_message_id) DO NOTHING RETURNING id`,
+      [conv.conversationId, masked, language, input.channelMessageId ?? null, input.contentType ?? "text", input.audioSeconds ?? null]);
     if (!inserted.rowCount) return { blocked: "duplicate" as const, conversationId: conv.conversationId };
-    await recordUsage(tx, "message_received", input.channel);
+    // Audio minutes count toward tenant limits (PRD 6B): recorded alongside the ordinary message-received event
+    // rather than a second usage_events row, so existing per-tenant usage totals already include voice traffic.
+    await recordUsage(tx, "message_received", input.channel, input.audioSeconds ? { audio_seconds: input.audioSeconds } : undefined);
     await tx.query("UPDATE conversations SET last_message_at = now() WHERE id = $1", [conv.conversationId]);
 
     // Monthly message cap and per-conversation token cap: the message is already stored (it's a real received

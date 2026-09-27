@@ -160,3 +160,81 @@ describe("WhatsApp routing & integrity", () => {
     }
   });
 });
+
+describe("WhatsApp voice notes (Phase 6B)", () => {
+  const fakeMedia = (buffer = Buffer.from("fake-ogg-bytes"), mimeType = "audio/ogg") =>
+    async (_mediaId: string, _accessToken: string) => ({ buffer, mimeType });
+
+  it("downloads the media, transcribes it, answers from that tenant's data, and stores it as content_type='voice'", async () => {
+    const sender = new FakeSender();
+    const stt: import("../src/voice/transcribe.js").SttProvider = { transcribe: async () => ({ ok: true, text: "What is the BSCS fee?", language: "english" }) };
+    await processChange(A.id, { messages: [{ id: "wamid.voice.1", from: "923001110000", type: "audio", audio: { id: "media123", mime_type: "audio/ogg" } }] },
+      { sender, provider: new ScriptedProvider(feeAsk("BSCS", A.feeAmount)), stt, downloadMedia: fakeMedia() });
+
+    assert.equal(sender.sent.length, 1);
+    assert.match(sender.sent[0]!.text, new RegExp(A.feeAmount.toLocaleString()));
+    const rows = await ownerQ(A, "SELECT content, content_type FROM messages WHERE channel_message_id = 'wamid.voice.1'");
+    assert.equal(rows[0]!.content, "What is the BSCS fee?");
+    assert.equal(rows[0]!.content_type, "voice");
+  });
+
+  it("Tenant A and Tenant B each get their own fee, asked by voice", async () => {
+    const senderA = new FakeSender(), senderB = new FakeSender();
+    const sttFor = (text: string): import("../src/voice/transcribe.js").SttProvider => ({ transcribe: async () => ({ ok: true, text, language: "english" }) });
+    await processChange(A.id, { messages: [{ id: "wamid.voice.mt.a", from: "923001110001", type: "audio", audio: { id: "m1", mime_type: "audio/ogg" } }] },
+      { sender: senderA, provider: new ScriptedProvider(feeAsk("BSCS", A.feeAmount)), stt: sttFor("What is the BSCS fee?"), downloadMedia: fakeMedia() });
+    await processChange(B.id, { messages: [{ id: "wamid.voice.mt.b", from: "923001110002", type: "audio", audio: { id: "m2", mime_type: "audio/ogg" } }] },
+      { sender: senderB, provider: new ScriptedProvider(feeAsk("BSCS", B.feeAmount)), stt: sttFor("What is the BSCS fee?"), downloadMedia: fakeMedia() });
+
+    assert.match(senderA.sent[0]!.text, new RegExp(A.feeAmount.toLocaleString()));
+    assert.match(senderB.sent[0]!.text, new RegExp(B.feeAmount.toLocaleString()));
+  });
+
+  it("a silent/unintelligible voice note gets the 'please resend or type' fallback, never reaches the model", async () => {
+    const sender = new FakeSender();
+    const stt: import("../src/voice/transcribe.js").SttProvider = { transcribe: async () => ({ ok: false, reason: "silent" }) };
+    await processChange(A.id, { messages: [{ id: "wamid.voice.silent", from: "923001110003", type: "audio", audio: { id: "m3", mime_type: "audio/ogg" } }] },
+      { sender, provider: new ScriptedProvider([]), stt, downloadMedia: fakeMedia() });
+    assert.equal(sender.sent.length, 1);
+    assert.match(sender.sent[0]!.text, /resend|type/i);
+  });
+
+  it("when the media download fails, also falls back gracefully instead of throwing", async () => {
+    const sender = new FakeSender();
+    await processChange(A.id, { messages: [{ id: "wamid.voice.nodl", from: "923001110004", type: "audio", audio: { id: "m4", mime_type: "audio/ogg" } }] },
+      { sender, provider: new ScriptedProvider([]), downloadMedia: async () => null });
+    assert.equal(sender.sent.length, 1);
+    assert.match(sender.sent[0]!.text, /resend|type/i);
+  });
+
+  it("the audio buffer is never persisted -- only the transcript ends up in the database", async () => {
+    const sender = new FakeSender();
+    const stt: import("../src/voice/transcribe.js").SttProvider = { transcribe: async () => ({ ok: true, text: "hostel fee kitni hai", language: "roman_urdu" }) };
+    await processChange(A.id, { messages: [{ id: "wamid.voice.noretain", from: "923001110005", type: "audio", audio: { id: "m5", mime_type: "audio/ogg" } }] },
+      { sender, provider: new ScriptedProvider([say("Hostel fee is not on file yet, sorry.")]), stt, downloadMedia: fakeMedia(Buffer.from("this-is-definitely-not-a-transcript")) });
+    const rows = await ownerQ(A, "SELECT content FROM messages WHERE channel_message_id = 'wamid.voice.noretain'");
+    assert.equal(rows[0]!.content, "hostel fee kitni hai");
+    assert.doesNotMatch(rows[0]!.content as string, /this-is-definitely-not-a-transcript/);
+  });
+
+  it("a replayed voice-note webhook (same message id) does not re-transcribe, re-download, or reply twice", async () => {
+    const sender = new FakeSender();
+    let transcribeCalls = 0, downloadCalls = 0;
+    const stt: import("../src/voice/transcribe.js").SttProvider = { transcribe: async () => { transcribeCalls++; return { ok: true, text: "What is the BSCS fee?", language: "english" }; } };
+    const downloadMedia: typeof import("../src/voice/whatsapp-media.js").downloadWhatsAppMedia = async (...args) => { downloadCalls++; return fakeMedia()(...args); };
+    const value = { messages: [{ id: "wamid.voice.replay", from: "923001110006", type: "audio", audio: { id: "m6", mime_type: "audio/ogg" } }] };
+    await processChange(A.id, value, { sender, provider: new ScriptedProvider(feeAsk("BSCS", A.feeAmount)), stt, downloadMedia });
+    assert.equal(sender.sent.length, 1);
+    assert.equal(transcribeCalls, 1);
+    assert.equal(downloadCalls, 1);
+
+    // Same message id again: the already-stored-message check short-circuits before the media download even
+    // happens, so no wasted download, no wasted STT call, and no second reply.
+    await processChange(A.id, value, { sender, provider: new ScriptedProvider([]), stt, downloadMedia });
+    assert.equal(sender.sent.length, 1);
+    assert.equal(transcribeCalls, 1);
+    assert.equal(downloadCalls, 1);
+    const rows = await ownerQ(A, "SELECT count(*)::int AS n FROM messages WHERE channel_message_id = 'wamid.voice.replay'");
+    assert.equal(rows[0]!.n, 1);
+  });
+});

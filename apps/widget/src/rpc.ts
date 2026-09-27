@@ -38,6 +38,18 @@ export async function rpc(path: string, method: "GET" | "POST" = "GET", body?: u
   return promise;
 }
 
+/** PRD 6B's mic button: posts a recorded clip's raw bytes (never JSON+base64 -- see protocol.ts) to the loader.
+ * ArrayBuffer is structured-clone-transferable over postMessage, so this is a real zero-copy-ish handoff, not a
+ * string round-trip. */
+export async function rpcBinary(path: string, audio: ArrayBuffer, contentType: string, headers?: Record<string, string>): Promise<{ status: number; body: unknown }> {
+  await waitForInit();
+  const requestId = Math.random().toString(36).slice(2);
+  const send: ToLoader = { channel: CHANNEL, type: "fetch", requestId, path, method: "POST", body: audio, bodyContentType: contentType, headers };
+  const promise = new Promise<{ status: number; body: unknown }>((resolve) => pending.set(requestId, { resolve }));
+  window.parent.postMessage(send, parentOrigin, [audio]); // transfer, not copy
+  return promise;
+}
+
 export function tellParent(msg: ToLoader) {
   window.parent.postMessage(msg, parentOrigin === "*" ? "*" : parentOrigin);
 }

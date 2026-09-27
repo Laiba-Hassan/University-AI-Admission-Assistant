@@ -1,7 +1,26 @@
 import { render } from "preact";
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
-import { rpc, tellParent, waitForInit } from "./rpc.js";
+import { rpc, rpcBinary, tellParent, waitForInit } from "./rpc.js";
 import { isWithinWorkingHours } from "./working-hours.js";
+
+// PRD 6B: "about 2 minutes per recording" -- stop automatically a little under the server's own MAX_VOICE_SECONDS
+// (125s) so a clip is never silently rejected purely for running a few seconds past the client's own guess at it.
+const MAX_RECORDING_MS = 120_000;
+const VOICE_RETRY_TEXT: Record<Lang, string> = {
+  english: "Sorry, I couldn't quite make that out. Try recording again, or type your question instead.",
+  roman_urdu: "Maazrat, mujhe woh sunai nahi diya. Dobara record karein ya apna sawal type kar dein.",
+  urdu: "معذرت، مجھے وہ سنائی نہیں دیا۔ دوبارہ ریکارڈ کریں یا اپنا سوال لکھ دیں۔",
+};
+const MIC_UNAVAILABLE_TEXT: Record<Lang, string> = {
+  english: "Microphone access was denied. You can still type your question below.",
+  roman_urdu: "Mic ki ijazat nahi mili. Aap neeche apna sawal type kar sakte hain.",
+  urdu: "مائیک کی اجازت نہیں ملی۔ آپ نیچے اپنا سوال لکھ سکتے ہیں۔",
+};
+const PREFERRED_MIME_TYPES = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/mp4"];
+function pickRecorderMimeType(): string | undefined {
+  if (typeof MediaRecorder === "undefined") return undefined;
+  return PREFERRED_MIME_TYPES.find((t) => MediaRecorder.isTypeSupported(t));
+}
 
 type Lang = "english" | "roman_urdu" | "urdu";
 type Detected = Lang | "other";
@@ -50,6 +69,13 @@ function App() {
   const [challengePass, setChallengePass] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string>("");
   const [afterHours, setAfterHours] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
+  const [micDenied, setMicDenied] = useState(false);
+  const micSupported = useMemo(() => typeof navigator !== "undefined" && !!navigator.mediaDevices?.getUserMedia && typeof MediaRecorder !== "undefined", []);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<number | undefined>(undefined);
   const bodyRef = useRef<HTMLDivElement>(null);
   const turnstileRef = useRef<HTMLDivElement>(null);
   const reveal = useTypewriter(setMessages);
@@ -153,6 +179,73 @@ function App() {
     await deliver(value);
   }
 
+  /** PRD 6B: upload a recorded clip, show the transcript as the student's own message once it comes back, then
+   * the verified reply -- same challenge-retry shape as deliver(), just over rpcBinary instead of rpc(). */
+  async function deliverVoice(audio: ArrayBuffer, mimeType: string) {
+    setTranscribing(true);
+    try {
+      const passHeader = (pass: string | null): Record<string, string> => (pass ? { "x-challenge-pass": pass } : {});
+      const path = `/api/chat/voice?session_id=${encodeURIComponent(sessionId)}`;
+      let res = await rpcBinary(path, audio, mimeType, passHeader(challengePass));
+      if (res.status === 403 && (res.body as { error?: string })?.error === "challenge_required") {
+        if (!config?.turnstile_site_key) {
+          const pass = await requestPass(sessionId, "dev");
+          res = await rpcBinary(path, audio, mimeType, passHeader(pass));
+        } else {
+          // A real Turnstile challenge isn't solved yet -- there's no clip queue-and-retry for voice (unlike
+          // text's pendingText); the student just sees the challenge and can record again once it's solved.
+          setChallengePass(null);
+          return;
+        }
+      }
+      if (res.status === 422) {
+        const lang = langOverride ?? config?.default_reply_script ?? "english";
+        const text = VOICE_RETRY_TEXT[lang];
+        setMessages((m) => [...m, { id: uid(), role: "system", text, shown: text, language: "english" }]);
+        return;
+      }
+      if (res.status !== 200) { setPhase("unavailable"); return; }
+      const body = res.body as { transcript: string; reply: string; status: string; language: Detected; cards: FactCard[]; message_id: string | null };
+      setMessages((m) => [...m, { id: uid(), role: "user", text: body.transcript, shown: body.transcript, language: body.language }]);
+      handleChatResponse({ status: 200, body });
+    } catch {
+      setPhase("unavailable");
+    } finally {
+      setTranscribing(false);
+    }
+  }
+
+  async function startRecording() {
+    if (!micSupported || recording || transcribing) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = pickRecorderMimeType();
+      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+      chunksRef.current = [];
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        window.clearTimeout(recordingTimerRef.current);
+        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || mimeType || "audio/webm" });
+        chunksRef.current = [];
+        if (blob.size > 0) await deliverVoice(await blob.arrayBuffer(), blob.type.split(";")[0] || "audio/webm");
+      };
+      mediaRecorderRef.current = recorder;
+      recorder.start();
+      setRecording(true);
+      recordingTimerRef.current = window.setTimeout(() => stopRecording(), MAX_RECORDING_MS);
+    } catch {
+      // NotAllowedError (denied) or NotFoundError (no mic) -- PRD 6.1: hide the mic button, typing still works.
+      setMicDenied(true);
+    }
+  }
+
+  function stopRecording() {
+    setRecording(false);
+    mediaRecorderRef.current?.stop();
+    mediaRecorderRef.current = null;
+  }
+
   async function handoff() {
     setMessages((m) => [...m, { id: uid(), role: "system", text: textFor(config, "handoff", langOverride ?? config?.default_reply_script ?? "english"), shown: textFor(config, "handoff", langOverride ?? config?.default_reply_script ?? "english"), language: "english" }]);
     await rpc("/api/chat/handoff", "POST", { session_id: sessionId, reason: "student used the Talk to admissions button" });
@@ -184,7 +277,7 @@ function App() {
       <Header config={config} />
       {afterHours && <div class="uaa-banner">Our office is currently closed. I can still answer questions; staff will follow up during working hours.</div>}
       <div class="uaa-body" ref={bodyRef}>
-        <WelcomeCard config={config} />
+        <WelcomeCard config={config} micSupported={micSupported && !micDenied} />
         {messages.map((m) => (
           <div key={m.id} class={`uaa-row uaa-row-${m.role}`}>
             <div class={`uaa-bubble uaa-bubble-${m.role}`} dir={m.language === "urdu" ? "rtl" : "ltr"}>
@@ -222,12 +315,33 @@ function App() {
           <div ref={turnstileRef} />
         </div>
       ) : (
-        <form class="uaa-inputbar" onSubmit={(e) => { e.preventDefault(); send(input); }}>
-          <input value={input} onInput={(e) => setInput((e.target as HTMLInputElement).value)} placeholder="Ask about programs, fees, deadlines…" disabled={sending} />
-          <button type="submit" disabled={sending || !input.trim()} aria-label="Send">
-            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
-          </button>
-        </form>
+        <>
+          {recording && <div class="uaa-recording-indicator"><span class="uaa-rec-dot" /> Recording… tap the mic to stop</div>}
+          <form class="uaa-inputbar" onSubmit={(e) => { e.preventDefault(); send(input); }}>
+            {micSupported && !micDenied && (
+              <button
+                type="button"
+                class={`uaa-mic ${recording ? "uaa-mic-active" : ""}`}
+                aria-label={recording ? "Stop recording" : "Record a voice message"}
+                disabled={sending || transcribing}
+                onClick={() => (recording ? stopRecording() : startRecording())}
+              >
+                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="9" y="2" width="6" height="12" rx="3" /><path d="M5 10a7 7 0 0 0 14 0" /><line x1="12" y1="19" x2="12" y2="22" />
+                </svg>
+              </button>
+            )}
+            <input
+              value={input} onInput={(e) => setInput((e.target as HTMLInputElement).value)}
+              placeholder={transcribing ? "Transcribing your voice message…" : "Ask about programs, fees, deadlines…"}
+              disabled={sending || recording || transcribing}
+            />
+            <button type="submit" disabled={sending || recording || transcribing || !input.trim()} aria-label="Send">
+              <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+            </button>
+          </form>
+          {micDenied && <p class="uaa-mic-denied">{MIC_UNAVAILABLE_TEXT[langOverride ?? config?.default_reply_script ?? "english"]}</p>}
+        </>
       )}
       <button class="uaa-handoff" onClick={handoff}>
         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
@@ -258,13 +372,15 @@ function Header({ config }: { config: TenantConfig | null }) {
   );
 }
 
-function WelcomeCard({ config }: { config: TenantConfig | null }) {
+function WelcomeCard({ config, micSupported }: { config: TenantConfig | null; micSupported: boolean }) {
   if (!config) return null;
   return (
     <div class="uaa-welcome">
       <div>
         <div class="uaa-welcome-title">Welcome to {config.name}</div>
         <p class="uaa-welcome-text">{config.welcome_message}</p>
+        {/* PRD 6B: "The first-open notice says voice recordings are transcribed and not kept." */}
+        {micSupported && <p class="uaa-welcome-voice-notice">🎙️ You can also ask by voice — recordings are transcribed and not kept.</p>}
       </div>
     </div>
   );

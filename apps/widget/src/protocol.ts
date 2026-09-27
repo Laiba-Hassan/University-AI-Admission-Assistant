@@ -10,7 +10,10 @@ export const CHANNEL = "uaa-widget";
 
 export type ToLoader =
   | { channel: typeof CHANNEL; type: "ready" }
-  | { channel: typeof CHANNEL; type: "fetch"; requestId: string; path: string; method: "GET" | "POST"; body?: unknown; headers?: Record<string, string> }
+  // `bodyContentType` set (PRD 6B mic button) means `body` is a real ArrayBuffer -- structured-clone-transferable
+  // over postMessage, no base64 inflation -- sent to fetch as-is with that Content-Type, instead of the usual
+  // JSON.stringify(body) path. See loader.ts's "fetch" handler.
+  | { channel: typeof CHANNEL; type: "fetch"; requestId: string; path: string; method: "GET" | "POST"; body?: unknown; bodyContentType?: string; headers?: Record<string, string> }
   | { channel: typeof CHANNEL; type: "resize"; height: number }
   | { channel: typeof CHANNEL; type: "open" }
   | { channel: typeof CHANNEL; type: "close" }

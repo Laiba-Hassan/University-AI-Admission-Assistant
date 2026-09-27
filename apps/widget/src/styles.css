@@ -74,6 +74,17 @@ html, body { margin: 0; height: 100%; font-family: -apple-system, BlinkMacSystem
 
 .uaa-turnstile-wrap { padding: 12px 16px; border-top: 1px solid var(--uaa-border); font-size: 12.5px; color: var(--uaa-muted); }
 
+/* PRD 6B: the widget's mic button, its recording state, and the fallback/denied copy around it. */
+.uaa-mic { background: var(--uaa-surface); color: var(--uaa-text); border: 1px solid var(--uaa-border); border-radius: 50%; width: 42px; height: 42px; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: background .12s, color .12s, border-color .12s; }
+.uaa-mic:disabled { opacity: 0.4; cursor: default; }
+.uaa-mic:not(:disabled):hover { border-color: var(--uaa-primary); color: var(--uaa-primary); }
+.uaa-mic-active { background: #d92c2c; border-color: #d92c2c; color: #fff; animation: uaa-pulse 1.4s ease-in-out infinite; }
+@keyframes uaa-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(217,44,44,.35); } 50% { box-shadow: 0 0 0 6px rgba(217,44,44,0); } }
+.uaa-recording-indicator { display: flex; align-items: center; gap: 7px; padding: 6px 16px; font-size: 12px; color: #d92c2c; font-weight: 500; }
+.uaa-rec-dot { width: 8px; height: 8px; border-radius: 50%; background: #d92c2c; animation: uaa-pulse 1.4s ease-in-out infinite; }
+.uaa-mic-denied { margin: 0 16px 10px; font-size: 11.5px; color: var(--uaa-muted); }
+.uaa-welcome-voice-notice { margin-top: 6px; font-size: 11.5px; color: var(--uaa-muted); }
+
 .uaa-handoff { display: inline-flex; align-items: center; gap: 6px; margin: 0 16px 12px; align-self: flex-start; background: var(--uaa-surface); border: 1px solid var(--uaa-border); color: var(--uaa-text); font-size: 12px; font-weight: 500; border-radius: 999px; cursor: pointer; padding: 6px 12px; }
 .uaa-handoff:hover { border-color: var(--uaa-primary); color: var(--uaa-primary); }
 
