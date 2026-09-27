@@ -24,17 +24,31 @@ export async function listKbEntity(tx: Tx, entity: KbEntity): Promise<EntityResu
       return { rows, warning: gap ? { count: 1, detail: `${gap.name} has no fee or intake data linked yet` } : null };
     }
     case "fee-items": {
+      const staleAfter = (await tx.query(`SELECT fee_stale_after_days FROM tenants`)).rows[0]?.fee_stale_after_days as number ?? 90;
       const rows = (await tx.query(`
         SELECT fi.id, fi.academic_year, fi.student_type, fi.item_type, fi.amount, fi.currency, fi.per,
                fi.effective_from, fi.last_verified_at, fi.status, fi.note,
+               (fi.last_verified_at IS NULL OR fi.last_verified_at < now() - make_interval(days => $1)) AS stale,
                COALESCE(p.name, 'All programs') AS program_name, COALESCE(c.name, 'All campuses') AS campus_name
           FROM fee_items fi LEFT JOIN programs p ON p.id = fi.program_id LEFT JOIN campuses c ON c.id = fi.campus_id
-         ORDER BY p.name NULLS LAST, fi.id`)).rows;
-      const gap = (await tx.query(`
+         ORDER BY p.name NULLS LAST, fi.id`, [staleAfter])).rows;
+      // A program with literally zero fee_items yet (not one with a gap in an existing row) renders as a
+      // placeholder "No fee data on record" row, matching the reference's Pharm-D example, rather than being
+      // silently absent from the table.
+      const missingPrograms = (await tx.query(`
+        SELECT p.id, p.name FROM programs p WHERE NOT EXISTS (SELECT 1 FROM fee_items fi WHERE fi.program_id = p.id) ORDER BY p.name`)).rows as { id: string; name: string }[];
+      const placeholderRows = missingPrograms.map((p) => ({
+        id: `missing-fee-${p.id}`, program_name: p.name, campus_name: null, amount: null, currency: null, per: null,
+        effective_from: null, last_verified_at: null, stale: false, status: "missing", note: null, no_data: true,
+      }));
+      const gapRow = (await tx.query(`
         SELECT COALESCE(p.name, 'All programs') AS program_name, COALESCE(c.name, 'All campuses') AS campus_name
           FROM fee_items fi LEFT JOIN programs p ON p.id = fi.program_id LEFT JOIN campuses c ON c.id = fi.campus_id
          WHERE fi.effective_from IS NULL ORDER BY fi.id LIMIT 1`)).rows[0] as { program_name: string; campus_name: string } | undefined;
-      return { rows, warning: gap ? { count: 1, detail: `${gap.program_name} (${gap.campus_name}) is missing an effective date` } : null };
+      const warning = missingPrograms[0]
+        ? { count: missingPrograms.length + (gapRow ? 1 : 0), detail: `${missingPrograms[0].name} (Main Campus) has no fee items on record` }
+        : gapRow ? { count: 1, detail: `${gapRow.program_name} (${gapRow.campus_name}) is missing an effective date` } : null;
+      return { rows: [...rows, ...placeholderRows], warning };
     }
     case "intakes": {
       const rows = (await tx.query(`

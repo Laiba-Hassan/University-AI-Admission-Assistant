@@ -1,17 +1,18 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Kpi, KpiStrip } from "@/components/Kpi";
-import { ResolutionChart, VolumeTrendChart, type TrendPoint } from "@/components/TrendCharts";
+import { Kpi, KpiStrip, type KpiTrend } from "@/components/Kpi";
+import { ResolutionChart, ResolutionLegend, VolumeTrendChart, type TrendPoint } from "@/components/TrendCharts";
 import { API_URL } from "@/lib/config";
 import { getAccessToken, useStaffSession } from "@/lib/session";
 
+type KpiKey = "conversations" | "leads_captured" | "after_hours_answered" | "handoff_rate" | "unanswered_rate" | "verified_reply_rate";
 interface Overview {
   period: string;
-  kpis: {
-    conversations: number; leads_captured: number; after_hours_answered: number;
-    handoff_rate: number; unanswered_rate: number; verified_reply_rate: number;
-  };
+  kpis: Record<KpiKey, number>;
+  kpi_trends: Record<KpiKey, KpiTrend | null>;
+  kpi_sparklines: Record<KpiKey, number[]>;
+  fallback_fired: number;
   trend: TrendPoint[];
   needs_attention: {
     conversations_waiting: { count: number; longest_wait_minutes: number };
@@ -95,12 +96,16 @@ export default function OverviewPage() {
         <>
           <div className="mt-6">
             <KpiStrip>
-              <Kpi label="Conversations" value={data.kpis.conversations.toLocaleString()} trend={trendLabel(data.trend, "conversations")} />
-              <Kpi label="Leads captured" value={data.kpis.leads_captured.toLocaleString()} trend={trendLabel(data.trend, "leads")} />
-              <Kpi label="After-hours answered" value={data.kpis.after_hours_answered.toLocaleString()} />
-              <Kpi label="Handoff rate" value={data.kpis.handoff_rate} suffix="%" />
-              <Kpi label="Unanswered rate" value={data.kpis.unanswered_rate} suffix="%" />
-              <Kpi label="Verified reply rate" value={data.kpis.verified_reply_rate} suffix="%" />
+              <Kpi label="Conversations" value={data.kpis.conversations.toLocaleString()} trend={data.kpi_trends.conversations} sparkline={data.kpi_sparklines.conversations} />
+              <Kpi label="Leads captured" value={data.kpis.leads_captured.toLocaleString()} trend={data.kpi_trends.leads_captured} sparkline={data.kpi_sparklines.leads_captured} />
+              <Kpi label="After-hours answered" value={data.kpis.after_hours_answered.toLocaleString()} trend={data.kpi_trends.after_hours_answered} sparkline={data.kpi_sparklines.after_hours_answered} />
+              <Kpi label="Handoff rate" value={data.kpis.handoff_rate} suffix="%" trend={data.kpi_trends.handoff_rate} sparkline={data.kpi_sparklines.handoff_rate} />
+              <Kpi label="Unanswered rate" value={data.kpis.unanswered_rate} suffix="%" trend={data.kpi_trends.unanswered_rate} sparkline={data.kpi_sparklines.unanswered_rate} />
+              <Kpi
+                label="Verified reply rate" value={data.kpis.verified_reply_rate} suffix="%"
+                trend={data.kpi_trends.verified_reply_rate} sparkline={data.kpi_sparklines.verified_reply_rate}
+                trendExtra={data.fallback_fired > 0 ? `fallback fired ${data.fallback_fired}×` : undefined}
+              />
             </KpiStrip>
           </div>
 
@@ -111,8 +116,13 @@ export default function OverviewPage() {
               <div className="mt-4"><VolumeTrendChart points={data.trend} /></div>
             </div>
             <div className="card p-5">
-              <h2 className="font-heading text-[15px] font-semibold text-ink">Resolution</h2>
-              <p className="text-xs text-muted">Last {data.period}</p>
+              <div className="flex items-start justify-between">
+                <div>
+                  <h2 className="font-heading text-[15px] font-semibold text-ink">Resolution</h2>
+                  <p className="text-xs text-muted">Last {data.period}</p>
+                </div>
+                <ResolutionLegend />
+              </div>
               <div className="mt-4"><ResolutionChart points={data.trend} /></div>
             </div>
           </div>
@@ -188,15 +198,6 @@ function relativeTime(d: Date) {
   if (s < 10) return "just now";
   if (s < 60) return `${s}s ago`;
   return `${Math.round(s / 60)}m ago`;
-}
-
-// A real week-over-week comparison from the same trend buckets the charts use, not a fabricated percentage.
-function trendLabel(trend: TrendPoint[], key: "conversations" | "leads"): string | undefined {
-  if (trend.length < 2) return undefined;
-  const last = trend[trend.length - 1]![key], prev = trend[trend.length - 2]![key];
-  if (prev === 0) return undefined;
-  const pct = Math.round(((last - prev) / prev) * 100);
-  return `${pct >= 0 ? "↑" : "↓"} ${Math.abs(pct)}% vs prior week`;
 }
 
 function BellIcon() {

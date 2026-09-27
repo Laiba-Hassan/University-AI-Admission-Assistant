@@ -88,6 +88,21 @@ describe("GET /api/v1/overview", () => {
     assert.equal(body.top_unanswered_questions[0]!.count, 5);
   });
 
+  it("computes a vs-prior-period trend per KPI, with the right sign of 'good' per metric", async () => {
+    const res = await overview("30d");
+    const body = (await res.json()) as { kpi_trends: Record<string, { direction: string; magnitude: number; unit: string; good: boolean } | null> };
+    // Everything in this fixture happened inside the last 2 days -- the prior 30-day window (days 31-60 ago) is
+    // empty, so every count-based KPI shows a 100%-style increase from zero... except delta() treats prior===0
+    // as "can't compute a % from nothing" and returns null for those; only the two rate KPIs (already 0 in the
+    // empty prior window) get a real pts comparison.
+    assert.equal(body.kpi_trends.conversations, null);
+    assert.ok(body.kpi_trends.handoff_rate); // 25% now vs 0% prior -> a real +25pts delta
+    assert.equal(body.kpi_trends.handoff_rate!.direction, "up");
+    assert.equal(body.kpi_trends.handoff_rate!.good, false); // handoff rate going UP is bad, so 'good' must be false
+    assert.ok(body.kpi_trends.verified_reply_rate);
+    assert.equal(body.kpi_trends.verified_reply_rate!.good, true); // verified reply rate going UP is good
+  });
+
   it("rejects an invalid period instead of guessing, falling back to 30d", async () => {
     const res = await overview("1y");
     assert.equal(res.status, 200);

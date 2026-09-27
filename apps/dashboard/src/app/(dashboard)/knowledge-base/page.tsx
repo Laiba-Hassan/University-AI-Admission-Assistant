@@ -83,11 +83,23 @@ export default function KnowledgeBasePage() {
                 {rows === null && <tr><td className="px-3 py-4 text-muted" colSpan={columns.length + 2}>Loading…</td></tr>}
                 {rows?.length === 0 && <tr><td className="px-3 py-4 text-muted" colSpan={columns.length + 2}>No records yet.</td></tr>}
                 {rows?.map((r) => {
+                  if (r.no_data) {
+                    return (
+                      <tr key={r.id}>
+                        <td className="px-3 py-2.5 text-ink">{r.program_name as string}</td>
+                        <td className="px-3 py-2.5 italic text-muted" colSpan={columns.length - 1}>No fee data on record</td>
+                        <td className="px-3 py-2.5"><span className="chip chip-rejected">Missing</span></td>
+                        <td className="px-3 py-2.5">
+                          <Link href={`/knowledge-base/import?target=${entity}`} className="rounded-lg border border-line px-3 py-1 text-xs font-semibold text-ink hover:bg-tint">Add fee</Link>
+                        </td>
+                      </tr>
+                    );
+                  }
                   const isDraft = "approved" in r ? !r.approved : r.status === "draft";
                   const isMissing = missingLabel(entity, r);
                   return (
                     <tr key={r.id}>
-                      {columns.map((c) => <td key={c.key} className="px-3 py-2.5 text-ink-2">{formatCell(r[c.key])}</td>)}
+                      {columns.map((c) => <td key={c.key} className="px-3 py-2.5 text-ink-2">{formatFieldCell(entity, c.key, r)}</td>)}
                       <td className="px-3 py-2.5">
                         {isMissing ? <span className="chip chip-rejected">Missing</span> : <span className={`chip ${isDraft ? "chip-draft" : "chip-approved"}`}>{isDraft ? "Draft" : "Approved"}</span>}
                       </td>
@@ -183,7 +195,6 @@ function columnsFor(entity: Entity): { key: string; label: string }[] {
 }
 
 function missingLabel(entity: Entity, r: Row): boolean {
-  if (entity === "fee-items") return r.effective_from == null;
   if (entity === "intakes") return r.application_deadline == null;
   if (entity === "campuses") return r.address == null;
   if (entity === "faqs") return r.answer === "";
@@ -191,7 +202,8 @@ function missingLabel(entity: Entity, r: Row): boolean {
 }
 
 function withDerivedFields(r: Row): Row {
-  if ("amount" in r && "currency" in r) {
+  if (r.no_data) return r;
+  if ("amount" in r && "currency" in r && r.amount != null) {
     const studentType = r.student_type === "international" ? "International" : r.student_type === "local" ? "Local" : null;
     return {
       ...r,
@@ -200,6 +212,20 @@ function withDerivedFields(r: Row): Row {
     };
   }
   return r;
+}
+
+/** Most cells just format-and-print (formatCell), but a few carry their own real-data warning styling the
+ * reference shows inline, not just in the row's overall Status chip: a missing effective date reads "⚠ Missing"
+ * in red, and a stale verification date reads with a warning triangle in amber -- both computed server-side
+ * from real thresholds (kb-entities.ts), never guessed at in the UI. */
+function formatFieldCell(entity: Entity, key: string, r: Row) {
+  if (entity === "fee-items" && key === "effective_from" && r.effective_from == null) {
+    return <span className="font-semibold" style={{ color: "var(--chip-rejected-fg)" }}>⚠ Missing</span>;
+  }
+  if (entity === "fee-items" && key === "last_verified_at" && r.stale && r.last_verified_at != null) {
+    return <span style={{ color: "var(--accent)" }}>⚠ {formatCell(r.last_verified_at)}</span>;
+  }
+  return formatCell(r[key]);
 }
 
 function formatCell(v: unknown) {
