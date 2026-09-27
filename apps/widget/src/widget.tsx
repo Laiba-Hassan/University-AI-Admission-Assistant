@@ -318,6 +318,11 @@ function App() {
         <>
           {recording && <div class="uaa-recording-indicator"><span class="uaa-rec-dot" /> Recording… tap the mic to stop</div>}
           <form class="uaa-inputbar" onSubmit={(e) => { e.preventDefault(); send(input); }}>
+            <input
+              value={input} onInput={(e) => setInput((e.target as HTMLInputElement).value)}
+              placeholder={transcribing ? "Transcribing your voice message…" : "Ask about programs, fees, deadlines…"}
+              disabled={sending || recording || transcribing}
+            />
             {micSupported && !micDenied && (
               <button
                 type="button"
@@ -331,11 +336,6 @@ function App() {
                 </svg>
               </button>
             )}
-            <input
-              value={input} onInput={(e) => setInput((e.target as HTMLInputElement).value)}
-              placeholder={transcribing ? "Transcribing your voice message…" : "Ask about programs, fees, deadlines…"}
-              disabled={sending || recording || transcribing}
-            />
             <button type="submit" disabled={sending || recording || transcribing || !input.trim()} aria-label="Send">
               <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
             </button>
