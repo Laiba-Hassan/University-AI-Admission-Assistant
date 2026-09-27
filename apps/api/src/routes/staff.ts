@@ -14,6 +14,7 @@ import { approveKbRow, KB_TABLES, listChangeHistory } from "../kb.js";
 import { listKbEntity, type KbEntity } from "../kb-entities.js";
 import { leadsToCsv, listLeads, updateLead } from "../leads.js";
 import { getOverview, type Period } from "../overview.js";
+import { getAutomationSettings, sendTestAutomationEvent, setAutomationSettings } from "../automations.js";
 import { getBranding, getChannels, getMessages, getRetention, getTeam, getUsageSummary, inviteStaff, setMessage, setRetention, updateBranding } from "../settings.js";
 import { createImportBatch, listImportDrafts, parseCsv, reviewImportDraft, validateRows, type ImportTarget } from "../import.js";
 import { randomBytes, createHash } from "node:crypto";
@@ -331,6 +332,24 @@ staffRouter.patch("/settings/branding", requireRole("admin", "editor"), async (r
   try {
     await withTenant(tenantOf(req), (tx) => updateBranding(tx, body.data));
     res.status(204).end();
+  } catch (err) { next(err); }
+});
+staffRouter.get("/settings/automations", async (req, res, next) => {
+  try { res.json(await withTenant(tenantOf(req), getAutomationSettings)); } catch (err) { next(err); }
+});
+const AutomationsPatch = z.object({ webhook_url: z.string().trim().url().max(2000).nullable().optional(), enabled: z.boolean().optional() });
+staffRouter.patch("/settings/automations", requireRole("admin"), async (req, res, next) => {
+  const body = AutomationsPatch.safeParse(req.body);
+  if (!body.success) return res.status(400).json({ error: "invalid_request" });
+  try {
+    await withTenant(tenantOf(req), (tx) => setAutomationSettings(tx, body.data));
+    res.status(204).end();
+  } catch (err) { next(err); }
+});
+staffRouter.post("/settings/automations/test", requireRole("admin"), async (req, res, next) => {
+  try {
+    const result = await withTenant(tenantOf(req), (tx) => sendTestAutomationEvent(tx));
+    res.status(result.ok ? 200 : 502).json(result);
   } catch (err) { next(err); }
 });
 staffRouter.get("/settings/team", async (req, res, next) => {

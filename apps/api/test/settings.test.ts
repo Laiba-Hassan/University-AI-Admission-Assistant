@@ -99,6 +99,24 @@ describe("GET/PATCH /api/v1/settings/branding", () => {
   });
 });
 
+describe("GET/PATCH /api/v1/settings/automations", () => {
+  it("defaults to enabled/no webhook, sets a webhook_url, rejects a non-URL, and only an admin can change it", async () => {
+    const initial = (await (await get("/api/v1/settings/automations")).json()) as { webhook_url: string | null; enabled: boolean };
+    assert.deepEqual(initial, { webhook_url: null, enabled: true });
+
+    const res = await patch("/api/v1/settings/automations", { webhook_url: "https://n8n.example/webhook/abc" });
+    assert.equal(res.status, 204);
+    const after1 = (await (await get("/api/v1/settings/automations")).json()) as { webhook_url: string | null };
+    assert.equal(after1.webhook_url, "https://n8n.example/webhook/abc");
+
+    assert.equal((await patch("/api/v1/settings/automations", { webhook_url: "not-a-url" })).status, 400);
+
+    await asOwner(A, "UPDATE tenant_users SET role = 'editor' WHERE tenant_id = current_tenant_id()");
+    assert.equal((await patch("/api/v1/settings/automations", { enabled: false })).status, 403);
+    await asOwner(A, "UPDATE tenant_users SET role = 'admin' WHERE tenant_id = current_tenant_id()");
+  });
+});
+
 describe("GET/PATCH /api/v1/settings/messages", () => {
   it("updates one localized message without touching the others", async () => {
     const res = await patch("/api/v1/settings/messages", { key: "welcome", language: "english", text: "Hi there!" });

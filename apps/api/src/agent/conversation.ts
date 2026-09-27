@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { maybeEmitLimitWarning } from "../automations.js";
 import { config } from "../config.js";
 import { withTenant, type Tx } from "../db.js";
 import { embed, toVector } from "../embeddings.js";
@@ -102,7 +103,10 @@ export async function handleMessage(input: ChatInput): Promise<ChatOutput> {
       // Counted BEFORE any conversation row is created (pre-increment): n is how many conversations already started
       // this month, so >= blocks once that count reaches the limit (a limit of 0 must block the very first attempt).
       const n = (await tx.query("SELECT count(*)::int AS n FROM usage_events WHERE event_type = 'conversation_started' AND \"timestamp\" >= date_trunc('month', now())")).rows[0].n;
-      if (n >= tenant.monthly_conversation_limit) return { blocked: "monthly_conversation" as const, conversationId: null };
+      if (n >= tenant.monthly_conversation_limit) {
+        await maybeEmitLimitWarning(tx, "monthly_conversation");
+        return { blocked: "monthly_conversation" as const, conversationId: null };
+      }
       conv = { ...conv, ...(await createConversation(tx, conv.contactId, input.channel)) };
       await recordUsage(tx, "conversation_started", input.channel);
     }
@@ -129,7 +133,10 @@ export async function handleMessage(input: ChatInput): Promise<ChatOutput> {
     const monthlyMessages = (await tx.query("SELECT count(*)::int AS n FROM usage_events WHERE event_type = 'message_received' AND \"timestamp\" >= date_trunc('month', now())")).rows[0].n;
     const tokensSoFar = (await tx.query(
       "SELECT COALESCE(SUM((metadata->>'input_tokens')::int),0) + COALESCE(SUM((metadata->>'output_tokens')::int),0) AS n FROM messages WHERE conversation_id = $1 AND role = 'assistant'", [conv.conversationId])).rows[0].n;
-    if (monthlyMessages > tenant.monthly_message_limit) return { blocked: "monthly_message" as const, conversationId: conv.conversationId, language };
+    if (monthlyMessages > tenant.monthly_message_limit) {
+      await maybeEmitLimitWarning(tx, "monthly_message");
+      return { blocked: "monthly_message" as const, conversationId: conv.conversationId, language };
+    }
     if (tokensSoFar >= config.MAX_CONVERSATION_TOKENS) return { blocked: "token_cap" as const, conversationId: conv.conversationId, language };
 
     const programs = (await tx.query("SELECT code, name FROM programs WHERE status = 'approved' ORDER BY name")).rows;

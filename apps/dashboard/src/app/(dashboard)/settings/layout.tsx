@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 
 const TABS = [
   ["/settings/channels", "Channels"], ["/settings/branding", "Branding"], ["/settings/messages", "Messages"],
-  ["/settings/retention", "Retention"], ["/settings/team", "Team"], ["/settings/usage", "Usage"],
+  ["/settings/automations", "Automations"], ["/settings/retention", "Retention"], ["/settings/team", "Team"], ["/settings/usage", "Usage"],
 ] as const;
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
