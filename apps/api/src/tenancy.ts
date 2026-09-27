@@ -8,7 +8,7 @@ export interface TenantContext { id: string; via: "session" | "widget" | "whatsa
 
 declare global {
   namespace Express {
-    interface Request { tenant?: TenantContext }
+    interface Request { tenant?: TenantContext; platformAdmin?: { authUserId: string; email: string } }
   }
 }
 
@@ -87,6 +87,31 @@ export const resolveStaffTenant: RequestHandler = async (req, res, next) => {
 
 export const requireRole = (...roles: Role[]) => (req: Request, res: Response, next: NextFunction) =>
   req.tenant?.role && roles.includes(req.tenant.role) ? next() : deny(res, 403, "forbidden");
+
+// ---------------------------------------------------------------- platform admin: Supabase Auth session -> platform_admins
+// Deliberately separate from resolveStaffTenant: a platform admin is not a member of any tenant, has no
+// req.tenant, and must be resolvable via is_platform_admin() before any tenant context exists (same reason
+// resolveWidgetTenant/resolveTenantByPhoneNumberId use SECURITY DEFINER functions rather than RLS-scoped queries).
+export const resolvePlatformAdmin: RequestHandler = async (req, res, next) => {
+  const token = req.header("authorization")?.match(/^Bearer (.+)$/i)?.[1];
+  const key = verificationKey();
+  if (!token) return deny(res, 401, "unauthorized");
+  if (!key) return res.status(503).json({ error: "auth_not_configured" });
+  try {
+    const { payload } = await jwtVerify(token, key as never, { audience: "authenticated" });
+    if (!payload.sub || !UUID.test(payload.sub)) return deny(res, 401, "unauthorized");
+    const admin = await withoutTenant(async (tx) =>
+      (await tx.query("SELECT email FROM platform_admins WHERE auth_user_id = $1 AND is_platform_admin($1)", [payload.sub])).rows[0] as
+        | { email: string }
+        | undefined);
+    if (!admin) return deny(res, 403, "forbidden");
+    req.platformAdmin = { authUserId: payload.sub, email: admin.email };
+    next();
+  } catch (err) {
+    if (err instanceof errors.JOSEError) return deny(res, 401, "unauthorized");
+    next(err);
+  }
+};
 
 /** The tenant a handler must use. Throws if a route was mounted without a resolver. */
 export const tenantOf = (req: Request): string => {
