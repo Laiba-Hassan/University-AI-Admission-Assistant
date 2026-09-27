@@ -1,10 +1,14 @@
 "use client";
 import { useEffect } from "react";
+import { InstallPrompt } from "@/components/InstallPrompt";
 import { Sidebar } from "@/components/Sidebar";
+import { Toasts } from "@/components/Toasts";
+import { useAlerts } from "@/lib/alerts";
 import { useStaffSession } from "@/lib/session";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = useStaffSession();
+  const alerts = useAlerts(session.status === "ready");
 
   useEffect(() => {
     if (session.status === "signed-out") window.location.href = "/sign-in";
@@ -26,8 +30,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex min-h-dvh bg-bg">
-      <Sidebar />
+      <Sidebar badge={alerts.badge} onOpenInbox={alerts.clearBadge} />
       <main className="min-w-0 flex-1 px-8 py-7 lg:px-12">{children}</main>
+      <Toasts toasts={alerts.toasts} onDismiss={alerts.dismiss} />
+      <InstallPrompt />
     </div>
   );
 }

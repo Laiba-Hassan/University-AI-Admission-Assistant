@@ -20,6 +20,7 @@ interface Overview {
   };
   top_unanswered_questions: { question_text: string; count: number; last_seen: string }[];
 }
+interface Channels { web_widget: { status: string } | null; whatsapp: { status: string } | null }
 
 const PERIODS = [["7d", "7d"], ["30d", "30d"], ["90d", "90d"]] as const;
 
@@ -28,6 +29,17 @@ export default function OverviewPage() {
   const [period, setPeriod] = useState<string>("30d");
   const [data, setData] = useState<Overview | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [channels, setChannels] = useState<Channels | null>(null);
+  const [syncedAt, setSyncedAt] = useState<Date | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const token = await getAccessToken();
+      if (!token) return;
+      const res = await fetch(`${API_URL}/api/v1/settings/channels`, { headers: { authorization: `Bearer ${token}` } });
+      if (res.ok) setChannels(await res.json());
+    })();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -37,7 +49,7 @@ export default function OverviewPage() {
       try {
         const res = await fetch(`${API_URL}/api/v1/overview?period=${period}`, { headers: { authorization: `Bearer ${token}` } });
         if (!res.ok) throw new Error(String(res.status));
-        if (!cancelled) setData(await res.json());
+        if (!cancelled) { setData(await res.json()); setSyncedAt(new Date()); }
       } catch {
         if (!cancelled) setError("Couldn't load the overview. Try refreshing.");
       }
@@ -51,17 +63,27 @@ export default function OverviewPage() {
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">{session.tenantName ?? " "}</p>
           <h1 className="font-heading text-[26px] font-semibold text-ink">Overview</h1>
+          <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-ink-2">
+            {channels?.web_widget && <ChannelDot label="Web" live={channels.web_widget.status === "active"} />}
+            {channels?.whatsapp && <ChannelDot label="WhatsApp" live={channels.whatsapp.status === "active"} />}
+            {syncedAt && <span className="text-muted">Synced {relativeTime(syncedAt)}</span>}
+          </div>
         </div>
-        <div className="flex items-center gap-1 rounded-lg border border-line bg-surface p-1">
-          {PERIODS.map(([value, label]) => (
-            <button
-              key={value}
-              onClick={() => setPeriod(value)}
-              className={`rounded-md px-3 py-1 text-xs font-semibold ${period === value ? "bg-accent text-white" : "text-ink-2 hover:text-ink"}`}
-            >
-              {label}
-            </button>
-          ))}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1 rounded-lg border border-line bg-surface p-1">
+            {PERIODS.map(([value, label]) => (
+              <button
+                key={value}
+                onClick={() => setPeriod(value)}
+                className={`rounded-md px-3 py-1 text-xs font-semibold ${period === value ? "bg-accent text-white" : "text-ink-2 hover:text-ink"}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <button aria-label="Notifications" className="flex h-9 w-9 items-center justify-center rounded-full border border-line bg-surface text-ink-2 hover:text-ink">
+            <BellIcon />
+          </button>
         </div>
       </div>
 
@@ -72,8 +94,8 @@ export default function OverviewPage() {
         <>
           <div className="mt-6">
             <KpiStrip>
-              <Kpi label="Conversations" value={data.kpis.conversations.toLocaleString()} />
-              <Kpi label="Leads captured" value={data.kpis.leads_captured.toLocaleString()} />
+              <Kpi label="Conversations" value={data.kpis.conversations.toLocaleString()} trend={trendLabel(data.trend, "conversations")} />
+              <Kpi label="Leads captured" value={data.kpis.leads_captured.toLocaleString()} trend={trendLabel(data.trend, "leads")} />
               <Kpi label="After-hours answered" value={data.kpis.after_hours_answered.toLocaleString()} />
               <Kpi label="Handoff rate" value={data.kpis.handoff_rate} suffix="%" />
               <Kpi label="Unanswered rate" value={data.kpis.unanswered_rate} suffix="%" />
@@ -148,5 +170,39 @@ function AttentionRow({ count, label, detail, href, cta }: { count: number; labe
       </div>
       <Link href={href} className="shrink-0 text-xs font-semibold text-accent hover:underline">{cta} →</Link>
     </li>
+  );
+}
+
+function ChannelDot({ label, live }: { label: string; live: boolean }) {
+  return (
+    <span className="flex items-center gap-1.5">
+      <span className={`h-1.5 w-1.5 rounded-full ${live ? "bg-emerald-500" : "bg-muted"}`} />
+      {label} · {live ? "Live" : "Off"}
+    </span>
+  );
+}
+
+function relativeTime(d: Date) {
+  const s = Math.round((Date.now() - d.getTime()) / 1000);
+  if (s < 10) return "just now";
+  if (s < 60) return `${s}s ago`;
+  return `${Math.round(s / 60)}m ago`;
+}
+
+// A real week-over-week comparison from the same trend buckets the charts use, not a fabricated percentage.
+function trendLabel(trend: TrendPoint[], key: "conversations" | "leads"): string | undefined {
+  if (trend.length < 2) return undefined;
+  const last = trend[trend.length - 1]![key], prev = trend[trend.length - 2]![key];
+  if (prev === 0) return undefined;
+  const pct = Math.round(((last - prev) / prev) * 100);
+  return `${pct >= 0 ? "↑" : "↓"} ${Math.abs(pct)}% vs prior week`;
+}
+
+function BellIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+    </svg>
   );
 }

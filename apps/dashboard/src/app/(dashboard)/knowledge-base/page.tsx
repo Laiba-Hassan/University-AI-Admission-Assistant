@@ -31,9 +31,14 @@ export default function KnowledgeBasePage() {
     <div>
       <div className="flex items-center justify-between">
         <h1 className="font-heading text-[26px] font-semibold text-ink">Knowledge Base Editor</h1>
-        <Link href="/knowledge-base/history" className="rounded-full border border-line px-4 py-2 text-xs font-semibold text-ink hover:bg-tint">
-          ⟲ View change history
-        </Link>
+        <div className="flex gap-2">
+          <Link href="/knowledge-base/import" className="rounded-full border border-line px-4 py-2 text-xs font-semibold text-ink hover:bg-tint">
+            ⬆ Bulk import
+          </Link>
+          <Link href="/knowledge-base/history" className="rounded-full border border-line px-4 py-2 text-xs font-semibold text-ink hover:bg-tint">
+            ⟲ View change history
+          </Link>
+        </div>
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
         {ENTITIES.map(([key, label]) => (

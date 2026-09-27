@@ -14,7 +14,7 @@ const NAV = [
   { href: "/settings", label: "Settings", icon: Gear },
 ] as const;
 
-export function Sidebar() {
+export function Sidebar({ badge = 0, onOpenInbox }: { badge?: number; onOpenInbox?: () => void }) {
   const pathname = usePathname();
   const session = useStaffSession();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -36,9 +36,12 @@ export function Sidebar() {
           {NAV.map(({ href, label, icon: Icon }) => {
             const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
             return (
-              <Link key={href} href={href} className={`nav-item ${active ? "active" : ""}`}>
+              <Link key={href} href={href} onClick={href === "/inbox" ? onOpenInbox : undefined} className={`nav-item ${active ? "active" : ""}`}>
                 <Icon />
                 <span className="side-label">{label}</span>
+                {href === "/inbox" && badge > 0 && (
+                  <span className="side-label ml-auto flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-semibold text-white">{badge}</span>
+                )}
               </Link>
             );
           })}

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Spectral, Work_Sans } from "next/font/google";
+import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import "./globals.css";
 
 // Spectral: the small set of serif moments (wordmark, page titles, card/section titles). Everything else,
@@ -10,7 +11,11 @@ const workSans = Work_Sans({ subsets: ["latin"], weight: ["400", "500", "600"], 
 export const metadata: Metadata = {
   title: "Enrollium",
   description: "Admissions AI dashboard",
+  manifest: "/manifest.json",
+  icons: { icon: "/icon-192.png", apple: "/icon-192.png" },
 };
+
+export const viewport = { themeColor: "#c15f3c" };
 
 // Reads the persisted theme choice before paint, so there is no light-then-dark flash on load.
 const THEME_BOOTSTRAP = `
@@ -28,7 +33,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP }} />
       </head>
-      <body className="font-body">{children}</body>
+      <body className="font-body">
+        {children}
+        <ServiceWorkerRegister />
+      </body>
     </html>
   );
 }

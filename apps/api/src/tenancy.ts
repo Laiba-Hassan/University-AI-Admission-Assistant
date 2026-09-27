@@ -48,6 +48,21 @@ function verificationKey() {
   return keys;
 }
 
+/** Verifies the caller is a real Supabase Auth user, without requiring existing tenant membership -- used only
+ * for accepting a staff invite, where by definition no membership exists yet. Never trust an authUserId from
+ * anywhere else (a header, a body field): it must always come from a verified token like this one. */
+export async function verifyAuthUser(req: Request): Promise<string | null> {
+  const token = req.header("authorization")?.match(/^Bearer (.+)$/i)?.[1];
+  const key = verificationKey();
+  if (!token || !key) return null;
+  try {
+    const { payload } = await jwtVerify(token, key as never, { audience: "authenticated" });
+    return payload.sub && UUID.test(payload.sub) ? payload.sub : null;
+  } catch {
+    return null;
+  }
+}
+
 export const resolveStaffTenant: RequestHandler = async (req, res, next) => {
   const token = req.header("authorization")?.match(/^Bearer (.+)$/i)?.[1];
   const key = verificationKey();

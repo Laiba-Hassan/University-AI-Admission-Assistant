@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import { pollAlerts } from "../alerts.js";
 import { assignConversationToSelf, escalateConversation, getConversationDetail, listConversations, sendStaffReply, setConversationStatus } from "../conversations.js";
 import { staffCors } from "../cors.js";
 import { withTenant } from "../db.js";
@@ -8,6 +9,7 @@ import { approveKbRow, KB_TABLES, listChangeHistory } from "../kb.js";
 import { leadsToCsv, listLeads, updateLead } from "../leads.js";
 import { getOverview, type Period } from "../overview.js";
 import { getBranding, getChannels, getMessages, getRetention, getTeam, getUsageSummary, inviteStaff, setMessage, setRetention, updateBranding } from "../settings.js";
+import { createImportBatch, listImportDrafts, parseCsv, reviewImportDraft, validateRows, type ImportTarget } from "../import.js";
 import { randomBytes, createHash } from "node:crypto";
 import { draftFaqFromCluster, ignoreCluster, linkClusterToFaq } from "../unanswered.js";
 import { requireRole, resolveStaffTenant, tenantOf } from "../tenancy.js";
@@ -204,6 +206,52 @@ staffRouter.post("/kb/:entity/:id/approve", requireRole("admin", "editor"), asyn
   } catch (err) { next(err); }
 });
 
+const IMPORT_TARGETS = new Set<ImportTarget>(["programs", "fee-items", "faqs", "scholarships"]);
+const Upload = z.object({ target: z.enum(["programs", "fee-items", "faqs", "scholarships"]), format: z.enum(["csv", "json"]), content: z.string().min(1).max(2_000_000) });
+
+staffRouter.post("/import/upload", requireRole("admin", "editor"), async (req, res, next) => {
+  const body = Upload.safeParse(req.body);
+  if (!body.success || !IMPORT_TARGETS.has(body.data.target)) return res.status(400).json({ error: "invalid_request" });
+  let rows: Record<string, string>[];
+  try {
+    rows = body.data.format === "csv" ? parseCsv(body.data.content) : JSON.parse(body.data.content);
+    if (!Array.isArray(rows)) throw new Error("not an array");
+  } catch {
+    return res.status(400).json({ error: "unparseable_content" });
+  }
+  if (rows.length === 0) return res.status(400).json({ error: "no_rows" });
+  if (rows.length > 2000) return res.status(400).json({ error: "too_many_rows" });
+  const staged = validateRows(body.data.target, rows);
+  try {
+    const batchId = await withTenant(tenantOf(req), async (tx) => {
+      const staffRow = (await tx.query(`SELECT id FROM tenant_users WHERE auth_user_id = $1`, [req.tenant!.authUserId])).rows[0] as { id: string } | undefined;
+      return createImportBatch(tx, body.data.format, body.data.target, staged, staffRow?.id ?? null);
+    });
+    res.status(201).json({ batch_id: batchId, staged: staged.filter((s) => s.ok).length, rejected: staged.filter((s) => !s.ok) });
+  } catch (err) { next(err); }
+});
+
+staffRouter.get("/import/drafts", async (req, res, next) => {
+  try {
+    res.json({ data: await withTenant(tenantOf(req), (tx) => listImportDrafts(tx, typeof req.query.batch_id === "string" ? req.query.batch_id : undefined)) });
+  } catch (err) { next(err); }
+});
+
+const Review = z.object({ action: z.enum(["accept", "reject"]), payload: z.record(z.unknown()).optional() });
+staffRouter.post("/import/drafts/:id/review", requireRole("admin", "editor"), async (req, res, next) => {
+  if (!UUID.test(req.params.id!)) return res.status(404).json({ error: "not_found" });
+  const body = Review.safeParse(req.body);
+  if (!body.success) return res.status(400).json({ error: "invalid_request" });
+  try {
+    const result = await withTenant(tenantOf(req), async (tx) => {
+      const staffRow = (await tx.query(`SELECT id FROM tenant_users WHERE auth_user_id = $1`, [req.tenant!.authUserId])).rows[0] as { id: string } | undefined;
+      return reviewImportDraft(tx, req.params.id!, body.data.action, staffRow?.id ?? null, body.data.payload);
+    });
+    if (!result.ok) return res.status(result.error === "not_found" ? 404 : 400).json(result);
+    res.status(204).end();
+  } catch (err) { next(err); }
+});
+
 staffRouter.get("/change-history", async (req, res, next) => {
   try {
     res.json({ data: await withTenant(tenantOf(req), (tx) => listChangeHistory(tx, Math.min(Math.max(Number(req.query.limit) || 100, 1), 500))) });
@@ -270,6 +318,13 @@ staffRouter.patch("/settings/retention", requireRole("admin"), async (req, res, 
   try {
     await withTenant(tenantOf(req), (tx) => setRetention(tx, body.data.retention_days));
     res.status(204).end();
+  } catch (err) { next(err); }
+});
+
+staffRouter.get("/alerts", async (req, res, next) => {
+  const since = typeof req.query.since === "string" && !Number.isNaN(Date.parse(req.query.since)) ? new Date(req.query.since) : new Date(Date.now() - 60_000);
+  try {
+    res.json({ data: await withTenant(tenantOf(req), (tx) => pollAlerts(tx, since)), server_time: new Date().toISOString() });
   } catch (err) { next(err); }
 });
 
