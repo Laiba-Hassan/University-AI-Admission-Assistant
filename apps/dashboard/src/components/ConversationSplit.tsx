@@ -12,7 +12,7 @@ interface FactCard { type: "fee" | "intake"; label: string; value: string; as_of
 interface Message {
   id: string; role: string; content: string; detected_language: string | null; timestamp: string;
   metadata: { verifier?: { ok: boolean; unsupported: string[]; leak_blocked: boolean }; tool_calls?: { name: string; args: Record<string, unknown>; status: unknown }[]; cards?: FactCard[] };
-  rating: number | null;
+  delivery_status: string | null; rating: number | null;
 }
 interface Detail {
   id: string; status: string; display_id: string | null; channel: string; language: string | null;
@@ -174,7 +174,10 @@ function MessageBubble({ message: m }: { message: Message }) {
       <div className="flex justify-end">
         <div className="max-w-[75%] rounded-xl bg-accent px-3.5 py-2 text-sm text-white">
           {m.content}
-          <div className="mt-1 text-right text-[10px] opacity-80">Staff · {formatTime(m.timestamp)}</div>
+          <div className="mt-1 text-right text-[10px] opacity-80">
+            Staff · {formatTime(m.timestamp)}
+            {m.delivery_status && <> · {deliveryStatusLabel(m.delivery_status)}</>}
+          </div>
         </div>
       </div>
     );
@@ -226,6 +229,15 @@ function ChannelIcon({ channel }: { channel: string }) {
 }
 const channelLabel = (c: string) => (c === "whatsapp" ? "WhatsApp" : "Web");
 const formatTime = (ts: string) => new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+/** WhatsApp delivery-status callbacks (PRD 6.2: "failures are visible in the tenant dashboard"). Web replies
+ * never get one (delivery_status stays null), so this only ever renders for WhatsApp staff replies. */
+function deliveryStatusLabel(status: string) {
+  if (status === "failed") return <span style={{ color: "var(--chip-rejected-fg)" }}>⚠ delivery failed</span>;
+  if (status === "read") return "✓✓ read";
+  if (status === "delivered") return "✓✓ delivered";
+  if (status === "sent") return "✓ sent";
+  return status;
+}
 function relativeTime(ts: string) {
   const mins = Math.max(0, Math.round((Date.now() - new Date(ts).getTime()) / 60000));
   if (mins < 1) return "just now";

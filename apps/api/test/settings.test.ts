@@ -39,6 +39,56 @@ describe("GET /api/v1/settings/usage", () => {
   });
 });
 
+describe("Web push subscribe/unsubscribe", () => {
+  it("any staff role can subscribe and unsubscribe this browser", async () => {
+    await asOwner(A, "UPDATE tenant_users SET role = 'viewer' WHERE tenant_id = current_tenant_id()");
+    const sub = await post("/api/v1/push/subscribe", { endpoint: "https://push.example/http-ep1", keys: { p256dh: "p", auth: "a" } });
+    assert.equal(sub.status, 204);
+    const rows = await asOwner(A, "SELECT count(*)::int AS n FROM push_subscriptions WHERE endpoint = 'https://push.example/http-ep1'");
+    assert.equal(rows[0]!.n, 1);
+
+    const unsub = await post("/api/v1/push/unsubscribe", { endpoint: "https://push.example/http-ep1" });
+    assert.equal(unsub.status, 204);
+    const after = await asOwner(A, "SELECT count(*)::int AS n FROM push_subscriptions WHERE endpoint = 'https://push.example/http-ep1'");
+    assert.equal(after[0]!.n, 0);
+    await asOwner(A, "UPDATE tenant_users SET role = 'admin' WHERE tenant_id = current_tenant_id()");
+  });
+
+  it("hands back null (not an error) when VAPID isn't configured, so the dashboard can hide the toggle", async () => {
+    const res = await get("/api/v1/push/vapid-public-key");
+    assert.equal(res.status, 200);
+    assert.equal((await res.json() as { key: string | null }).key, null);
+  });
+});
+
+describe("POST /api/v1/settings/channels/whatsapp (guided manual connection)", () => {
+  it("connects, masks the token in the response, never returns it again, and disconnect clears it", async () => {
+    const res = await post("/api/v1/settings/channels/whatsapp", {
+      phone_number_id: "123456789", waba_id: "waba1", display_number: "+1 555 0100", access_token: "EAAsecrettoken1234", template_name: "admissions_followup",
+    });
+    assert.equal(res.status, 201);
+    const body = (await res.json()) as { masked: string };
+    assert.equal(body.masked, "••••••1234");
+    assert.doesNotMatch(body.masked, /EAAsecrettoken/);
+
+    const channels = (await (await get("/api/v1/settings/channels")).json()) as { whatsapp: { status: string; display_number: string } };
+    assert.equal(channels.whatsapp.status, "active");
+    assert.equal(channels.whatsapp.display_number, "+1 555 0100");
+    assert.doesNotMatch(JSON.stringify(channels), /EAAsecrettoken/); // the encrypted token never leaves the server
+
+    assert.equal((await post("/api/v1/settings/channels/whatsapp/disconnect", {})).status, 204);
+    const after = (await (await get("/api/v1/settings/channels")).json()) as { whatsapp: { status: string } };
+    assert.equal(after.whatsapp.status, "disconnected");
+  });
+
+  it("only an admin can connect a WhatsApp number", async () => {
+    await asOwner(A, "UPDATE tenant_users SET role = 'editor' WHERE tenant_id = current_tenant_id()");
+    const res = await post("/api/v1/settings/channels/whatsapp", { phone_number_id: "1", access_token: "t" });
+    assert.equal(res.status, 403);
+    await asOwner(A, "UPDATE tenant_users SET role = 'admin' WHERE tenant_id = current_tenant_id()");
+  });
+});
+
 describe("GET/PATCH /api/v1/settings/branding", () => {
   it("reads and partially updates branding without clobbering other keys", async () => {
     await asOwner(A, "UPDATE tenants SET branding = '{\"primary\":\"#0B3D91\",\"accent\":\"#F2A900\"}'");

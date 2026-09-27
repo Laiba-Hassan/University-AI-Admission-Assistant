@@ -1,6 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Modal, ToggleSwitch } from "@/components/Modal";
+import { isPushSubscribed, pushSupported, subscribeToPush, unsubscribeFromPush } from "@/lib/push";
 import type { StaffSession } from "@/lib/session";
 import { supabase } from "@/lib/supabase";
 
@@ -92,13 +93,38 @@ export function AccountSettingsModal({ session, onClose }: { session: StaffSessi
 
 const roleLabel = (r?: string) => (r === "admin" ? "Admissions Admin" : r === "editor" ? "Admissions Editor" : r === "viewer" ? "Admissions Viewer" : "");
 
-/** Notification preferences. "New lead captured" / "Conversation escalated to me" map to the real per-staff
- * notify_leads/notify_handoffs columns (already used by Settings > Team's alert columns); the other three
- * toggles have no backend field yet and are kept as a per-viewer localStorage convenience only. */
+/** Notification preferences. "Desktop notifications" is real: it subscribes/unsubscribes this browser for web
+ * push (PRD 6A) via lib/push.ts. Settings > Team shows the per-staff notify_leads/notify_handoffs columns this
+ * account already has (read-only there); email/digest/sound have no backend field yet and stay a per-viewer
+ * localStorage convenience until one exists. */
 export function NotificationsModal({ onClose }: { onClose: () => void }) {
   const [prefs, setPrefs] = useState(() => readLocalPrefs());
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushError, setPushError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!pushSupported()) return;
+    void isPushSubscribed().then((sub) => setPrefs((p) => ({ ...p, desktop: sub })));
+  }, []);
+
+  async function toggleDesktop(next: boolean) {
+    setPushError(null);
+    if (!pushSupported()) { setPushError("Push notifications aren't supported in this browser."); return; }
+    setPushBusy(true);
+    try {
+      if (next) {
+        const result = await subscribeToPush();
+        if (!result.ok) { setPushError(result.error); return; }
+      } else {
+        await unsubscribeFromPush();
+      }
+      setPrefs((p) => ({ ...p, desktop: next }));
+    } finally {
+      setPushBusy(false);
+    }
+  }
 
   async function save() {
     setBusy(true);
@@ -132,19 +158,20 @@ export function NotificationsModal({ onClose }: { onClose: () => void }) {
       </div>
       <p className="mt-5 text-xs font-semibold uppercase tracking-wide text-muted">In-app</p>
       <div className="mt-2 divide-y divide-line">
-        <Row label="Desktop notifications" checked={prefs.desktop} onChange={(v) => setPrefs((p) => ({ ...p, desktop: v }))} />
+        <Row label="Desktop notifications" checked={prefs.desktop} onChange={toggleDesktop} disabled={pushBusy} />
         <Row label="Sound alerts" checked={prefs.sound} onChange={(v) => setPrefs((p) => ({ ...p, sound: v }))} />
       </div>
+      {pushError && <p className="mt-2 text-xs" style={{ color: "var(--chip-rejected-fg)" }}>{pushError}</p>}
       {status && <p className="mt-3 text-xs text-ink-2">{status}</p>}
     </Modal>
   );
 }
 
-function Row({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
+function Row({ label, checked, onChange, disabled }: { label: string; checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
   return (
     <div className="flex items-center justify-between py-3">
       <span className="text-sm text-ink">{label}</span>
-      <ToggleSwitch checked={checked} onChange={onChange} />
+      <ToggleSwitch checked={checked} onChange={onChange} disabled={disabled} />
     </div>
   );
 }

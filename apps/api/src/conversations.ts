@@ -69,10 +69,10 @@ export async function getConversationDetail(tx: Tx, id: string) {
   if (!conv) return null;
 
   const messages = (await tx.query(
-    `SELECT m.id, m.role, m.content, m.detected_language, m."timestamp", m.metadata, mf.rating
+    `SELECT m.id, m.role, m.content, m.detected_language, m."timestamp", m.metadata, m.delivery_status, mf.rating
      FROM messages m LEFT JOIN message_feedback mf ON mf.message_id = m.id
      WHERE m.conversation_id = $1 ORDER BY m."timestamp" ASC`, [id])).rows as
-    { id: string; role: string; content: string; detected_language: string | null; timestamp: Date; metadata: Record<string, unknown>; rating: number | null }[];
+    { id: string; role: string; content: string; detected_language: string | null; timestamp: Date; metadata: Record<string, unknown>; delivery_status: string | null; rating: number | null }[];
   // The conversation's language, for the detail header ("WhatsApp · English · started..."): the most recent
   // message that actually has one, since staff replies don't carry a detected_language.
   const language = [...messages].reverse().find((m) => m.detected_language)?.detected_language ?? null;

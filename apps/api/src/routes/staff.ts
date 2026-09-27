@@ -1,8 +1,11 @@
 import { Router } from "express";
 import { z } from "zod";
 import { pollAlerts } from "../alerts.js";
+import { config } from "../config.js";
+import { deletePushSubscription, savePushSubscription } from "../push.js";
 import { handleMessage } from "../agent/conversation.js";
 import { deliverStaffReplyOverWhatsApp } from "../whatsapp/staff-reply.js";
+import { disconnectWhatsApp, saveWhatsAppConnection } from "../whatsapp/connection.js";
 import { assignConversationToSelf, escalateConversation, getConversationDetail, listConversations, sendStaffReply, setConversationStatus } from "../conversations.js";
 import { staffCors } from "../cors.js";
 import { withTenant } from "../db.js";
@@ -294,6 +297,27 @@ staffRouter.get("/settings/usage", async (req, res, next) => {
 staffRouter.get("/settings/channels", async (req, res, next) => {
   try { res.json(await withTenant(tenantOf(req), getChannels)); } catch (err) { next(err); }
 });
+// Guided manual WhatsApp connection (PRD 6.2's fallback to Meta Embedded Signup, which needs Tech Provider
+// approval this project doesn't have): an admin pastes in credentials from their own Meta Business/App dashboard.
+const ConnectWhatsApp = z.object({
+  phone_number_id: z.string().trim().min(1), waba_id: z.string().trim().min(1).optional(),
+  display_number: z.string().trim().min(1).optional(), access_token: z.string().trim().min(1),
+  template_name: z.string().trim().min(1).optional(),
+});
+staffRouter.post("/settings/channels/whatsapp", requireRole("admin"), async (req, res, next) => {
+  const body = ConnectWhatsApp.safeParse(req.body);
+  if (!body.success) return res.status(400).json({ error: "invalid_request" });
+  try {
+    const result = await withTenant(tenantOf(req), (tx) => saveWhatsAppConnection(tx, {
+      phoneNumberId: body.data.phone_number_id, wabaId: body.data.waba_id, displayNumber: body.data.display_number,
+      accessToken: body.data.access_token, templateName: body.data.template_name,
+    }));
+    res.status(201).json(result);
+  } catch (err) { next(err); }
+});
+staffRouter.post("/settings/channels/whatsapp/disconnect", requireRole("admin"), async (req, res, next) => {
+  try { await withTenant(tenantOf(req), disconnectWhatsApp); res.status(204).end(); } catch (err) { next(err); }
+});
 staffRouter.get("/settings/branding", async (req, res, next) => {
   try { res.json(await withTenant(tenantOf(req), getBranding)); } catch (err) { next(err); }
 });
@@ -362,6 +386,32 @@ staffRouter.get("/sidebar-counts", async (req, res, next) => {
       return { inbox, unanswered };
     });
     res.json(counts);
+  } catch (err) { next(err); }
+});
+
+// Web push (PRD 6A): opt-in in Settings > Notifications. The public key is not secret (it's handed to every
+// subscribing browser by design), so this needs no special role, just a real staff session.
+staffRouter.get("/push/vapid-public-key", (req, res) => { res.json({ key: config.VAPID_PUBLIC_KEY ?? null }); });
+
+const PushSubscribe = z.object({ endpoint: z.string().url(), keys: z.object({ p256dh: z.string().min(1), auth: z.string().min(1) }) });
+staffRouter.post("/push/subscribe", async (req, res, next) => {
+  const body = PushSubscribe.safeParse(req.body);
+  if (!body.success) return res.status(400).json({ error: "invalid_request" });
+  try {
+    await withTenant(tenantOf(req), async (tx) => {
+      const staffRow = (await tx.query(`SELECT id FROM tenant_users WHERE auth_user_id = $1`, [req.tenant!.authUserId])).rows[0] as { id: string } | undefined;
+      if (staffRow) await savePushSubscription(tx, staffRow.id, body.data);
+    });
+    res.status(204).end();
+  } catch (err) { next(err); }
+});
+const PushUnsubscribe = z.object({ endpoint: z.string().url() });
+staffRouter.post("/push/unsubscribe", async (req, res, next) => {
+  const body = PushUnsubscribe.safeParse(req.body);
+  if (!body.success) return res.status(400).json({ error: "invalid_request" });
+  try {
+    await withTenant(tenantOf(req), (tx) => deletePushSubscription(tx, body.data.endpoint));
+    res.status(204).end();
   } catch (err) { next(err); }
 });
 

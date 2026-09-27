@@ -22,3 +22,32 @@ self.addEventListener("fetch", (event) => {
     caches.match(event.request).then((cached) => cached ?? fetch(event.request)),
   );
 });
+
+// Phase 6A: desktop/PWA push for new handoffs and leads (PRD: "a minimal alert -- no name or phone number --
+// opening the lead or conversation when clicked"). The payload is exactly {title, body, url} -- see api/src/push.ts.
+self.addEventListener("push", (event) => {
+  let data = { title: "Enrollium", body: "You have a new alert.", url: "/" };
+  try { if (event.data) data = { ...data, ...event.data.json() }; } catch { /* non-JSON payload: fall back to defaults */ }
+  event.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      icon: "/icon-192.png",
+      badge: "/icon-192.png",
+      data: { url: data.url },
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = new URL(event.notification.data?.url ?? "/", self.location.origin).href;
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      const existing = clients.find((c) => c.url === url);
+      if (existing) return existing.focus();
+      const sameOrigin = clients.find((c) => new URL(c.url).origin === self.location.origin);
+      if (sameOrigin) return sameOrigin.navigate(url).then((c) => c?.focus());
+      return self.clients.openWindow(url);
+    }),
+  );
+});

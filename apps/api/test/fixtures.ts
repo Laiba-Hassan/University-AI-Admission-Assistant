@@ -6,9 +6,14 @@ import { SignJWT } from "jose";
 // SUPABASE_JWKS_URL too: tenancy.ts prefers it over SUPABASE_JWT_SECRET when both are set, and the root .env
 // carries a real Supabase project's JWKS URL for local dev sign-in -- tests must stay on the HS256 fixture
 // secret below regardless of what a developer's .env has, or every staffToken()-minted JWT fails verification.
+// Same reasoning for VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY: the root .env carries a real dev keypair so push
+// actually works when clicking around locally, but push.test.ts's "VAPID not configured" case (and anything
+// asserting on the real default sender) needs a deterministic starting point regardless of that.
 export const JWT_SECRET = "test-only-secret-at-least-32-characters-long";
 export const WA_SECRET = "test-only-whatsapp-app-secret";
 delete process.env.SUPABASE_JWKS_URL;
+delete process.env.VAPID_PUBLIC_KEY;
+delete process.env.VAPID_PRIVATE_KEY;
 process.env.SUPABASE_JWT_SECRET = JWT_SECRET;
 process.env.WHATSAPP_APP_SECRET = WA_SECRET;
 
