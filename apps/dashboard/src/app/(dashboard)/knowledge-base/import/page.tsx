@@ -1,14 +1,20 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 import { apiFetch, apiJson } from "@/lib/api";
 
-const TARGETS = [["programs", "Programs"], ["fee-items", "Fees"], ["faqs", "FAQs"], ["scholarships", "Scholarships"]] as const;
+const TARGETS = [
+  ["programs", "Programs"], ["fee-items", "Fees"], ["intakes", "Intakes"], ["requirements", "Requirements"],
+  ["faculties", "Faculties"], ["campuses", "Campuses"], ["scholarships", "Scholarships"], ["faqs", "FAQs"],
+] as const;
+type Target = (typeof TARGETS)[number][0];
 interface Draft { id: string; payload: Record<string, unknown>; review_status: string }
 interface UploadResult { batch_id: string; staged: number; rejected: { row: number; errors: string[] }[] }
 
-export default function ImportPage() {
-  const [target, setTarget] = useState<(typeof TARGETS)[number][0]>("programs");
+function ImportForm() {
+  const requested = useSearchParams().get("target") as Target | null;
+  const [target, setTarget] = useState<Target>(requested && TARGETS.some(([k]) => k === requested) ? requested : "programs");
   const [format, setFormat] = useState<"csv" | "json">("csv");
   const [content, setContent] = useState("");
   const [result, setResult] = useState<UploadResult | null>(null);
@@ -113,7 +119,19 @@ function templateFor(target: string) {
   switch (target) {
     case "programs": return "name,code,degree_level\nBS Data Science,BSDS,bachelor";
     case "fee-items": return "program_code,academic_year,student_type,item_type,amount,currency,per\nBSDS,2026-27,local,tuition,145000,PKR,semester";
+    case "intakes": return "program_code,intake_name,application_deadline,seats\nBSDS,Fall 2026,2026-08-15,80";
+    case "requirements": return "program_code,eligibility,required_documents\nBSDS,Minimum 60% aggregate,Matric / O-Level transcript";
+    case "faculties": return "name\nData Science";
+    case "campuses": return "name,city,address\nNorth Campus,Islamabad,Sector G-9, Islamabad";
     case "scholarships": return "name,criteria,coverage,conditions\nMerit Scholarship,Top 10% in entry test,up to 50%,Renewed each semester";
     default: return "question,answer\nDo you offer online classes?,No.";
   }
+}
+
+export default function ImportPage() {
+  return (
+    <Suspense fallback={null}>
+      <ImportForm />
+    </Suspense>
+  );
 }

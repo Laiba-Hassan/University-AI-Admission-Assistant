@@ -204,6 +204,9 @@ export async function handleMessage(input: ChatInput): Promise<ChatOutput> {
       [setup.conversationId, reply, language, JSON.stringify({
         tool_calls: run.toolTrace, verifier: { ok: verdict.ok && !leak, unsupported: verdict.unsupported.map((u) => u.raw), leak_blocked: leak },
         model: run.model, input_tokens: run.inputTokens, output_tokens: run.outputTokens, unanswered,
+        // The fact cards this turn actually cited (see cards[] below), persisted so the Conversations detail
+        // view can re-render the same "Show sources" evidence later, not just that a tool ran.
+        cards,
       })])).rows[0].id as string;
     await tx.query("UPDATE conversations SET last_message_at = now() WHERE id = $1", [setup.conversationId]);
     await recordUsage(tx, "ai_reply", input.channel, { model: run.model, input_tokens: run.inputTokens, output_tokens: run.outputTokens });

@@ -67,6 +67,7 @@ export default function OverviewPage() {
             {channels?.web_widget && <ChannelDot label="Web" live={channels.web_widget.status === "active"} />}
             {channels?.whatsapp && <ChannelDot label="WhatsApp" live={channels.whatsapp.status === "active"} />}
             {syncedAt && <span className="text-muted">Synced {relativeTime(syncedAt)}</span>}
+            <Link href="/knowledge-base/import" className="font-semibold text-accent hover:underline">Finish tenant setup →</Link>
           </div>
         </div>
         <div className="flex items-center gap-3">

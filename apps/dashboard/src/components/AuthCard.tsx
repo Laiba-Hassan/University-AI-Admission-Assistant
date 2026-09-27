@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 export function AuthCard({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
   return (
     <div className="flex min-h-dvh items-center justify-center bg-bg px-4 py-10">
@@ -50,21 +52,56 @@ export function Field({
   label: string; type?: string; value: string; onChange: (v: string) => void; placeholder?: string;
   hint?: string; action?: React.ReactNode; required?: boolean;
 }) {
+  const isPassword = type === "password";
+  const [revealed, setRevealed] = useState(false);
+
   return (
     <label className="mb-4 block">
       <span className="flex items-baseline justify-between text-xs font-medium text-ink-2">
         {label}
         {action}
       </span>
-      <input
-        type={type}
-        value={value}
-        required={required}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="mt-1.5 w-full rounded-lg border border-line bg-surface px-3.5 py-2.5 text-sm text-ink placeholder:text-muted focus:border-accent focus:outline-none"
-      />
+      <span className="relative mt-1.5 block">
+        <input
+          type={isPassword && revealed ? "text" : type}
+          value={value}
+          required={required}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          className="w-full rounded-lg border border-line bg-surface px-3.5 py-2.5 text-sm text-ink placeholder:text-muted focus:border-accent focus:outline-none"
+          style={isPassword ? { paddingRight: "2.5rem" } : undefined}
+        />
+        {isPassword && (
+          <button
+            type="button"
+            onClick={() => setRevealed((r) => !r)}
+            tabIndex={-1}
+            aria-label={revealed ? "Hide password" : "Show password"}
+            className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-muted hover:text-ink-2"
+          >
+            {revealed ? <EyeOffIcon /> : <EyeIcon />}
+          </button>
+        )}
+      </span>
       {hint && <span className="mt-1 block text-[11px] text-muted">{hint}</span>}
     </label>
+  );
+}
+
+function EyeIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M1.5 12S5 5 12 5s10.5 7 10.5 7-3.5 7-10.5 7S1.5 12 1.5 12Z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.6" />
+    </svg>
+  );
+}
+
+function EyeOffIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M3 3l18 18" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M10.6 5.1C11.05 5.03 11.52 5 12 5c7 0 10.5 7 10.5 7-.6 1.18-1.5 2.5-2.73 3.71M6.6 6.6C3.8 8.36 1.5 12 1.5 12s3.5 7 10.5 7c1.6 0 3-.36 4.2-.94M9.9 9.9a3 3 0 0 0 4.24 4.24" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }

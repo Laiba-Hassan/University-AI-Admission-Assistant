@@ -9,6 +9,7 @@ export interface StaffSession {
   role?: "admin" | "editor" | "viewer";
   tenantId?: string;
   tenantName?: string;
+  planLabel?: string;
   signOut: () => Promise<void>;
 }
 
@@ -35,8 +36,8 @@ export function useStaffSession(): StaffSession {
       try {
         const res = await fetch(`${API_URL}/api/v1/me`, { headers: { authorization: `Bearer ${token}` } });
         if (!res.ok) { if (!cancelled) setState({ status: "signed-out" }); return; }
-        const me = (await res.json()) as { tenantId: string; role: "admin" | "editor" | "viewer"; tenantName?: string };
-        if (!cancelled) setState({ status: "ready", email, role: me.role, tenantId: me.tenantId, tenantName: me.tenantName });
+        const me = (await res.json()) as { tenantId: string; role: "admin" | "editor" | "viewer"; tenantName?: string; planLabel?: string };
+        if (!cancelled) setState({ status: "ready", email, role: me.role, tenantId: me.tenantId, tenantName: me.tenantName, planLabel: me.planLabel });
       } catch {
         if (!cancelled) setState({ status: "signed-out" });
       }

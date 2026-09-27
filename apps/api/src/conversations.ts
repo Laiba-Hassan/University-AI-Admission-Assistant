@@ -30,12 +30,14 @@ export async function listConversations(tx: Tx, f: ConversationFilters) {
   if (f.search) where.push(`(ct.external_id ILIKE ${p(`%${f.search}%`)} OR lm.content ILIKE ${p(`%${f.search}%`)})`);
 
   const sql = `
-    SELECT c.id, c.tenant_id, c.channel, c.status, c.started_at, c.last_message_at, ct.external_id, ct.channel AS contact_channel,
+    SELECT c.id, c.tenant_id, c.channel, c.status, c.started_at, c.last_message_at, c.handoff_reason, ct.external_id, ct.channel AS contact_channel,
       lm.content AS last_message, lm.detected_language AS language,
+      au.email AS assigned_email,
       EXISTS (SELECT 1 FROM leads l WHERE l.contact_id = c.contact_id) AS has_lead,
       EXISTS (SELECT 1 FROM message_feedback mf JOIN messages m2 ON m2.id = mf.message_id WHERE m2.conversation_id = c.id AND mf.rating = -1) AS thumbs_down
     FROM conversations c
     JOIN contacts ct ON ct.id = c.contact_id
+    LEFT JOIN tenant_users au ON au.id = c.assigned_to
     LEFT JOIN LATERAL (
       SELECT content, detected_language FROM messages m WHERE m.conversation_id = c.id ORDER BY m."timestamp" DESC LIMIT 1
     ) lm ON true
@@ -43,9 +45,9 @@ export async function listConversations(tx: Tx, f: ConversationFilters) {
     ORDER BY c.last_message_at DESC
     LIMIT ${p(f.limit)}`;
   const rows = (await tx.query(sql, params)).rows as {
-    id: string; tenant_id: string; channel: string; status: string; started_at: Date; last_message_at: Date;
+    id: string; tenant_id: string; channel: string; status: string; started_at: Date; last_message_at: Date; handoff_reason: string | null;
     external_id: string; contact_channel: string; last_message: string | null; language: string | null;
-    has_lead: boolean; thumbs_down: boolean;
+    assigned_email: string | null; has_lead: boolean; thumbs_down: boolean;
   }[];
   // tenant_id is carried through even though RLS already makes cross-tenant rows unreachable: it's what the
   // generic isolation smoke test (test/isolation.test.ts) checks on every resource, and this route shares the
@@ -53,31 +55,38 @@ export async function listConversations(tx: Tx, f: ConversationFilters) {
   return rows.map((r) => ({
     id: r.id, tenant_id: r.tenant_id, channel: r.channel, status: r.status, started_at: r.started_at, last_message_at: r.last_message_at,
     display_id: r.contact_channel === "whatsapp" ? maskPhone(r.external_id, r.contact_channel) : `Visitor #${r.external_id.slice(-4)}`,
-    last_message: r.last_message, language: r.language, has_lead: r.has_lead, thumbs_down: r.thumbs_down,
+    last_message: r.last_message, language: r.language, handoff_reason: r.handoff_reason, assigned_email: r.assigned_email,
+    has_lead: r.has_lead, thumbs_down: r.thumbs_down,
   }));
 }
 
 export async function getConversationDetail(tx: Tx, id: string) {
   const conv = (await tx.query(
-    `SELECT c.id, c.channel, c.status, c.started_at, c.last_message_at, ct.external_id, ct.channel AS contact_channel
-     FROM conversations c JOIN contacts ct ON ct.id = c.contact_id WHERE c.id = $1`, [id])).rows[0] as
-    { id: string; channel: string; status: string; started_at: Date; last_message_at: Date; external_id: string; contact_channel: string } | undefined;
+    `SELECT c.id, c.channel, c.status, c.started_at, c.last_message_at, c.handoff_reason, ct.external_id, ct.channel AS contact_channel, au.email AS assigned_email
+     FROM conversations c JOIN contacts ct ON ct.id = c.contact_id LEFT JOIN tenant_users au ON au.id = c.assigned_to
+     WHERE c.id = $1`, [id])).rows[0] as
+    { id: string; channel: string; status: string; started_at: Date; last_message_at: Date; handoff_reason: string | null; external_id: string; contact_channel: string; assigned_email: string | null } | undefined;
   if (!conv) return null;
 
   const messages = (await tx.query(
     `SELECT m.id, m.role, m.content, m.detected_language, m."timestamp", m.metadata, mf.rating
      FROM messages m LEFT JOIN message_feedback mf ON mf.message_id = m.id
-     WHERE m.conversation_id = $1 ORDER BY m."timestamp" ASC`, [id])).rows;
+     WHERE m.conversation_id = $1 ORDER BY m."timestamp" ASC`, [id])).rows as
+    { id: string; role: string; content: string; detected_language: string | null; timestamp: Date; metadata: Record<string, unknown>; rating: number | null }[];
+  // The conversation's language, for the detail header ("WhatsApp · English · started..."): the most recent
+  // message that actually has one, since staff replies don't carry a detected_language.
+  const language = [...messages].reverse().find((m) => m.detected_language)?.detected_language ?? null;
 
   return {
     id: conv.id, channel: conv.channel, status: conv.status, started_at: conv.started_at, last_message_at: conv.last_message_at,
+    handoff_reason: conv.handoff_reason, assigned_email: conv.assigned_email, language,
     display_id: conv.contact_channel === "whatsapp" ? maskPhone(conv.external_id, conv.contact_channel) : `Visitor #${conv.external_id.slice(-4)}`,
     messages,
   };
 }
 
 export async function escalateConversation(tx: Tx, id: string, reason: string) {
-  const updated = await tx.query(`UPDATE conversations SET status = 'needs_human', last_message_at = now() WHERE id = $1 AND status <> 'needs_human' RETURNING id`, [id]);
+  const updated = await tx.query(`UPDATE conversations SET status = 'needs_human', handoff_reason = $2, last_message_at = now() WHERE id = $1 AND status <> 'needs_human' RETURNING id`, [id, reason]);
   if (updated.rowCount) {
     await tx.query(`INSERT INTO event_outbox (tenant_id, event_type, payload) VALUES (current_tenant_id(), 'handoff_requested', $1)`,
       [JSON.stringify({ conversation_id: id, reason })]);
@@ -85,7 +94,10 @@ export async function escalateConversation(tx: Tx, id: string, reason: string) {
   return { escalated: !!updated.rowCount };
 }
 
-/** "Assign to me": self-assignment only (a staff member claiming a conversation), never assigning someone else. */
+/** "Assign to me" / "Reassign": self-assignment only (a staff member claiming a conversation), never assigning
+ * someone else. Reassigning an already-claimed conversation is the same action, just requiring Admin/Editor
+ * (enforced by the route's requireRole, not here) since a Viewer must not be able to steal another staffer's
+ * claimed conversation away from them. */
 export async function assignConversationToSelf(tx: Tx, id: string, authUserId: string) {
   const staffRow = (await tx.query(`SELECT id FROM tenant_users WHERE auth_user_id = $1`, [authUserId])).rows[0] as { id: string } | undefined;
   if (!staffRow) return { assigned: false };

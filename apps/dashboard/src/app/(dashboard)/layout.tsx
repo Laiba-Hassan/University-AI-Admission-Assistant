@@ -29,9 +29,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="flex min-h-dvh bg-bg">
-      <Sidebar badge={alerts.badge} onOpenInbox={alerts.clearBadge} />
-      <main className="min-w-0 flex-1 px-8 py-7 lg:px-12">{children}</main>
+    <div className="flex h-dvh overflow-hidden bg-bg">
+      <Sidebar onOpenInbox={alerts.clearBadge} />
+      <main className="min-w-0 flex-1 overflow-y-auto px-8 py-7 lg:px-12">{children}</main>
       <Toasts toasts={alerts.toasts} onDismiss={alerts.dismiss} />
       <InstallPrompt />
     </div>

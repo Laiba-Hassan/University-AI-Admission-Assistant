@@ -4,7 +4,7 @@ import type { Tx } from "./db.js";
 // Phase 5: CSV/JSON bulk import with row-level validation, staged as drafts (import_batches/import_drafts) --
 // nothing reaches a real table until a staff member reviews and accepts each row (PRD: "Records land as drafts
 // ... until approved", the same rule the later AI-assisted import in Phase 7 also has to follow).
-export type ImportTarget = "programs" | "fee-items" | "faqs" | "scholarships";
+export type ImportTarget = "programs" | "fee-items" | "faqs" | "scholarships" | "intakes" | "requirements" | "faculties" | "campuses";
 
 const SCHEMAS: Record<ImportTarget, z.ZodTypeAny> = {
   programs: z.object({
@@ -21,6 +21,15 @@ const SCHEMAS: Record<ImportTarget, z.ZodTypeAny> = {
   scholarships: z.object({
     name: z.string().min(1), criteria: z.string().optional(), coverage: z.string().optional(), conditions: z.string().optional(),
   }),
+  intakes: z.object({
+    program_code: z.string().min(1), intake_name: z.string().min(1),
+    application_deadline: z.string().min(1).optional(), seats: z.coerce.number().int().positive().optional(),
+  }),
+  requirements: z.object({
+    program_code: z.string().min(1), eligibility: z.string().optional(), required_documents: z.string().optional(),
+  }).refine((v) => v.eligibility || v.required_documents, { message: "at least one of eligibility/required_documents is required" }),
+  faculties: z.object({ name: z.string().min(1) }),
+  campuses: z.object({ name: z.string().min(1), city: z.string().optional(), address: z.string().optional() }),
 };
 
 /** Minimal RFC-4180-ish CSV parser: quoted fields, escaped quotes ("") and commas inside quotes. Good enough for
@@ -90,6 +99,24 @@ const TARGET_INSERT: Record<ImportTarget, (tx: Tx, p: Record<string, unknown>) =
   scholarships: async (tx, p) => {
     await tx.query(`INSERT INTO scholarships (tenant_id, name, criteria, coverage, conditions, status) VALUES (current_tenant_id(), $1, $2, $3, $4, 'draft')`,
       [p.name, p.criteria ?? null, p.coverage ?? null, p.conditions ?? null]);
+  },
+  intakes: async (tx, p) => {
+    const program = (await tx.query(`SELECT id FROM programs WHERE code = $1`, [p.program_code])).rows[0] as { id: string } | undefined;
+    if (!program) throw new Error(`No program with code ${p.program_code as string} -- import its program row first`);
+    await tx.query(
+      `INSERT INTO intakes (tenant_id, program_id, intake_name, application_deadline, seats, status) VALUES (current_tenant_id(), $1, $2, $3, $4, 'draft')`,
+      [program.id, p.intake_name, p.application_deadline ?? null, p.seats ?? null]);
+  },
+  requirements: async (tx, p) => {
+    const program = (await tx.query(`SELECT id FROM programs WHERE code = $1`, [p.program_code])).rows[0] as { id: string } | undefined;
+    if (!program) throw new Error(`No program with code ${p.program_code as string} -- import its program row first`);
+    await tx.query(
+      `INSERT INTO requirements (tenant_id, program_id, eligibility, required_documents, status) VALUES (current_tenant_id(), $1, $2, $3, 'draft')`,
+      [program.id, p.eligibility ?? null, p.required_documents ?? null]);
+  },
+  faculties: async (tx, p) => { await tx.query(`INSERT INTO faculties (tenant_id, name, status) VALUES (current_tenant_id(), $1, 'draft')`, [p.name]); },
+  campuses: async (tx, p) => {
+    await tx.query(`INSERT INTO campuses (tenant_id, name, city, address, status) VALUES (current_tenant_id(), $1, $2, $3, 'draft')`, [p.name, p.city ?? null, p.address ?? null]);
   },
 };
 

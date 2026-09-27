@@ -2,9 +2,13 @@ import { randomUUID } from "node:crypto";
 import pg from "pg";
 import { SignJWT } from "jose";
 
-// Must be set before src/config.ts is first imported (tests import the app dynamically).
+// Must be set before src/config.ts is first imported (tests import the app dynamically). Deliberately deletes
+// SUPABASE_JWKS_URL too: tenancy.ts prefers it over SUPABASE_JWT_SECRET when both are set, and the root .env
+// carries a real Supabase project's JWKS URL for local dev sign-in -- tests must stay on the HS256 fixture
+// secret below regardless of what a developer's .env has, or every staffToken()-minted JWT fails verification.
 export const JWT_SECRET = "test-only-secret-at-least-32-characters-long";
 export const WA_SECRET = "test-only-whatsapp-app-secret";
+delete process.env.SUPABASE_JWKS_URL;
 process.env.SUPABASE_JWT_SECRET = JWT_SECRET;
 process.env.WHATSAPP_APP_SECRET = WA_SECRET;
 

@@ -7,6 +7,13 @@ export async function getUsageSummary(tx: Tx) {
   // tenant matches what actually blocks them, never a separately-computed (and possibly diverging) estimate.
   const conversations = (await tx.query(`SELECT count(*)::int AS n FROM usage_events WHERE event_type = 'conversation_started' AND "timestamp" >= date_trunc('month', now())`)).rows[0].n as number;
   const messages = (await tx.query(`SELECT count(*)::int AS n FROM usage_events WHERE event_type = 'message_received' AND "timestamp" >= date_trunc('month', now())`)).rows[0].n as number;
+  // Per-channel breakdown (Settings > Usage shows Web and WhatsApp side by side): the same two event types,
+  // grouped by the `channel` column usage_events already carries, against the one shared monthly limit above.
+  const byChannel = (await tx.query(
+    `SELECT channel, event_type, count(*)::int AS n FROM usage_events
+      WHERE event_type IN ('conversation_started', 'message_received') AND "timestamp" >= date_trunc('month', now())
+      GROUP BY channel, event_type`)).rows as { channel: string | null; event_type: string; n: number }[];
+  const forChannel = (channel: string, eventType: string) => byChannel.find((r) => r.channel === channel && r.event_type === eventType)?.n ?? 0;
   return {
     monthly_conversation_limit: limits?.monthly_conversation_limit ?? 0,
     monthly_message_limit: limits?.monthly_message_limit ?? 0,
@@ -14,6 +21,10 @@ export async function getUsageSummary(tx: Tx) {
     whatsapp_enabled: limits?.whatsapp_enabled ?? false,
     conversations_used: conversations,
     messages_used: messages,
+    by_channel: {
+      web: { conversations: forChannel("web", "conversation_started"), messages: forChannel("web", "message_received") },
+      whatsapp: { conversations: forChannel("whatsapp", "conversation_started"), messages: forChannel("whatsapp", "message_received") },
+    },
   };
 }
 

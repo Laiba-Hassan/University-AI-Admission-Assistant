@@ -1,11 +1,13 @@
 "use client";
 import { useEffect, useState } from "react";
+import { Modal } from "@/components/Modal";
 import { apiFetch, apiJson } from "@/lib/api";
 
 interface Member { id: string; email: string; role: string; notify_leads: boolean; notify_handoffs: boolean }
 
 export default function TeamTab() {
   const [team, setTeam] = useState<Member[] | null>(null);
+  const [inviting, setInviting] = useState(false);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("viewer");
   const [inviteResult, setInviteResult] = useState<string | null>(null);
@@ -22,7 +24,13 @@ export default function TeamTab() {
 
   return (
     <div>
-      <p className="text-sm text-ink-2">Only Admins can invite staff or change roles.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="font-heading text-lg font-semibold text-ink">Team</h2>
+          <p className="text-sm text-ink-2">Only Admins can invite staff or change roles.</p>
+        </div>
+        <button onClick={() => { setInviting(true); setInviteResult(null); }} className="rounded-full bg-accent px-4 py-2 text-xs font-semibold text-white hover:opacity-90">+ Invite staff</button>
+      </div>
       <div className="card mt-4 overflow-x-auto">
         <table className="w-full min-w-[480px] text-left text-sm">
           <thead className="border-b border-line text-[11px] uppercase tracking-wide text-muted">
@@ -41,20 +49,32 @@ export default function TeamTab() {
           </tbody>
         </table>
       </div>
-      <div className="mt-5 flex flex-wrap items-end gap-2">
-        <div>
-          <label className="text-xs font-medium text-ink-2">Email</label>
-          <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="staff@university.edu" className="mt-1 block rounded-lg border border-line bg-surface px-3 py-2 text-sm" />
-        </div>
-        <div>
-          <label className="text-xs font-medium text-ink-2">Role</label>
-          <select value={role} onChange={(e) => setRole(e.target.value)} className="mt-1 block rounded-lg border border-line bg-surface px-3 py-2 text-sm">
-            <option value="viewer">Viewer</option><option value="editor">Editor</option><option value="admin">Admin</option>
-          </select>
-        </div>
-        <button onClick={invite} className="rounded-full bg-accent px-4 py-2 text-xs font-semibold text-white hover:opacity-90">+ Invite staff</button>
-      </div>
-      {inviteResult && <p className="mt-2 text-xs text-ink-2">{inviteResult}</p>}
+      <p className="mt-3 text-[11px] text-muted">Viewers see read-only Leads and Knowledge Base pages and cannot open Settings → Team.</p>
+
+      {inviting && (
+        <Modal
+          title="Invite staff"
+          onClose={() => setInviting(false)}
+          footer={
+            <>
+              <button onClick={() => setInviting(false)} className="rounded-lg border border-line px-4 py-2 text-sm font-semibold text-ink hover:bg-tint">Cancel</button>
+              <button onClick={() => { void invite(); }} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white hover:opacity-90">Send invite</button>
+            </>
+          }
+        >
+          <label className="block">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted">Email</span>
+            <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="staff@university.edu" className="mt-1.5 w-full rounded-lg border border-line bg-surface px-3.5 py-2.5 text-sm text-ink focus:border-accent focus:outline-none" />
+          </label>
+          <label className="mt-4 block">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted">Role</span>
+            <select value={role} onChange={(e) => setRole(e.target.value)} className="mt-1.5 w-full rounded-lg border border-line bg-surface px-3.5 py-2.5 text-sm text-ink">
+              <option value="viewer">Viewer</option><option value="editor">Editor</option><option value="admin">Admin</option>
+            </select>
+          </label>
+          {inviteResult && <p className="mt-3 text-xs text-ink-2">{inviteResult}</p>}
+        </Modal>
+      )}
     </div>
   );
 }

@@ -12,19 +12,26 @@ export default function InboxPage() {
           queryString="?status=needs_human"
           emptyLabel="Nothing waiting for a reply right now."
           allowReply
+          showHandoffReason
           renderActions={(d, refresh) => (
             <div className="flex items-center gap-2">
               <button
                 onClick={() => apiFetch(`/api/v1/conversations/${d.id}/assign`, { method: "POST", body: "{}" }).then(refresh)}
+                className="rounded-full bg-accent px-3 py-1 text-xs font-semibold text-white hover:opacity-90"
+              >
+                {d.assigned_email ? "Reassign to me" : "Assign to me"}
+              </button>
+              <button
+                onClick={() => apiFetch(`/api/v1/conversations/${d.id}/status`, { method: "POST", body: JSON.stringify({ status: "open" }) }).then(refresh)}
                 className="rounded-full border border-line px-3 py-1 text-xs font-semibold text-ink hover:bg-tint"
               >
-                Assign to me
+                Return to bot
               </button>
               <button
                 onClick={() => apiFetch(`/api/v1/conversations/${d.id}/status`, { method: "POST", body: JSON.stringify({ status: "closed" }) }).then(refresh)}
                 className="rounded-full border border-line px-3 py-1 text-xs font-semibold text-ink hover:bg-tint"
               >
-                Close
+                Close conversation
               </button>
             </div>
           )}

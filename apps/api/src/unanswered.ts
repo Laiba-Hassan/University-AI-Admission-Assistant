@@ -17,6 +17,25 @@ export async function linkClusterToFaq(tx: Tx, id: string, faqId: string) {
   return !!updated.rowCount;
 }
 
+/** "Add to Unanswered log" (Conversations detail footer): a staff member manually flags the student's last
+ * message as something the assistant should have had a better answer for, even though the assistant itself
+ * didn't flag it. Reuses the same open-cluster-by-exact-text matching the agent's own auto-logging does; no
+ * embedding is computed here (best-effort only in the agent path too), so this can cluster later once one exists. */
+export async function logConversationAsUnanswered(tx: Tx, conversationId: string) {
+  const lastUser = (await tx.query(
+    `SELECT content FROM messages WHERE conversation_id = $1 AND role = 'user' ORDER BY "timestamp" DESC LIMIT 1`, [conversationId]
+  )).rows[0] as { content: string } | undefined;
+  if (!lastUser) return null;
+  const hit = await tx.query(
+    `UPDATE unanswered_questions SET count = count + 1, last_seen = now() WHERE lower(question_text) = lower($1) AND status = 'open' RETURNING id`,
+    [lastUser.content]);
+  if (hit.rowCount) return { id: hit.rows[0]!.id as string, created: false };
+  const inserted = (await tx.query(
+    `INSERT INTO unanswered_questions (tenant_id, question_text) VALUES (current_tenant_id(), $1) RETURNING id`, [lastUser.content]
+  )).rows[0] as { id: string };
+  return { id: inserted.id, created: true };
+}
+
 export async function ignoreCluster(tx: Tx, id: string) {
   const updated = await tx.query(`UPDATE unanswered_questions SET status = 'ignored' WHERE id = $1 RETURNING id`, [id]);
   return !!updated.rowCount;

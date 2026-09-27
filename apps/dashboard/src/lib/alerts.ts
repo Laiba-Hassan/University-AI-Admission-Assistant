@@ -39,6 +39,23 @@ export function useAlerts(enabled: boolean) {
   return { toasts, badge, dismiss, clearBadge };
 }
 
+/** Sidebar nav badges (Inbox, Unanswered): the persistent absolute counts the reference shows next to those two
+ * items, polled independently of (and less often than) the toast-driving useAlerts above. */
+export function useSidebarCounts(enabled: boolean) {
+  const [counts, setCounts] = useState({ inbox: 0, unanswered: 0 });
+  useEffect(() => {
+    if (!enabled) return;
+    let cancelled = false;
+    const tick = () => {
+      apiJson<{ inbox: number; unanswered: number }>("/api/v1/sidebar-counts").then((c) => { if (!cancelled) setCounts(c); }).catch(() => {});
+    };
+    tick();
+    const id = setInterval(tick, 15000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [enabled]);
+  return counts;
+}
+
 let audioCtx: AudioContext | null = null;
 function playChime() {
   try {

@@ -1,17 +1,19 @@
 import { Router } from "express";
 import { z } from "zod";
 import { pollAlerts } from "../alerts.js";
+import { handleMessage } from "../agent/conversation.js";
 import { assignConversationToSelf, escalateConversation, getConversationDetail, listConversations, sendStaffReply, setConversationStatus } from "../conversations.js";
 import { staffCors } from "../cors.js";
 import { withTenant } from "../db.js";
 import { searchKnowledge } from "../knowledge.js";
 import { approveKbRow, KB_TABLES, listChangeHistory } from "../kb.js";
+import { listKbEntity, type KbEntity } from "../kb-entities.js";
 import { leadsToCsv, listLeads, updateLead } from "../leads.js";
 import { getOverview, type Period } from "../overview.js";
 import { getBranding, getChannels, getMessages, getRetention, getTeam, getUsageSummary, inviteStaff, setMessage, setRetention, updateBranding } from "../settings.js";
 import { createImportBatch, listImportDrafts, parseCsv, reviewImportDraft, validateRows, type ImportTarget } from "../import.js";
 import { randomBytes, createHash } from "node:crypto";
-import { draftFaqFromCluster, ignoreCluster, linkClusterToFaq } from "../unanswered.js";
+import { draftFaqFromCluster, ignoreCluster, linkClusterToFaq, logConversationAsUnanswered } from "../unanswered.js";
 import { requireRole, resolveStaffTenant, tenantOf } from "../tenancy.js";
 
 const PERIODS = new Set<Period>(["7d", "30d", "90d"]);
@@ -45,8 +47,8 @@ staffRouter.use(staffCors, resolveStaffTenant, requireRole("admin", "editor", "v
 
 staffRouter.get("/me", async (req, res, next) => {
   try {
-    const name = await withTenant(tenantOf(req), async (tx) => (await tx.query("SELECT name FROM tenants")).rows[0]?.name as string | undefined);
-    res.json({ tenantId: req.tenant!.id, role: req.tenant!.role, tenantName: name });
+    const tenant = await withTenant(tenantOf(req), async (tx) => (await tx.query("SELECT name, plan_label FROM tenants")).rows[0] as { name: string; plan_label: string } | undefined);
+    res.json({ tenantId: req.tenant!.id, role: req.tenant!.role, tenantName: tenant?.name, planLabel: tenant?.plan_label });
   } catch (err) { next(err); }
 });
 
@@ -126,6 +128,15 @@ staffRouter.post("/conversations/:id/status", requireRole("admin", "editor"), as
   } catch (err) { next(err); }
 });
 
+staffRouter.post("/conversations/:id/log-unanswered", requireRole("admin", "editor"), async (req, res, next) => {
+  if (!UUID.test(req.params.id!)) return res.status(404).json({ error: "not_found" });
+  try {
+    const result = await withTenant(tenantOf(req), (tx) => logConversationAsUnanswered(tx, req.params.id!));
+    if (!result) return res.status(404).json({ error: "not_found" });
+    res.status(201).json(result);
+  } catch (err) { next(err); }
+});
+
 staffRouter.get("/leads", async (req, res, next) => {
   const q = req.query;
   try {
@@ -194,6 +205,17 @@ staffRouter.post("/unanswered-questions/:id/ignore", requireRole("admin", "edito
   } catch (err) { next(err); }
 });
 
+// The Knowledge Base Editor's per-entity table: joined display fields (faculty/campus names, program counts)
+// plus one real validation warning, richer than the generic /:resource route below can express -- registered
+// before it so this exact path wins.
+staffRouter.get("/kb-entities/:entity", async (req, res, next) => {
+  if (!KB_TABLES[req.params.entity!]) return res.status(404).json({ error: "not_found" });
+  try {
+    const result = await withTenant(tenantOf(req), (tx) => listKbEntity(tx, req.params.entity as KbEntity));
+    res.json({ data: result.rows, warning: result.warning });
+  } catch (err) { next(err); }
+});
+
 staffRouter.post("/kb/:entity/:id/approve", requireRole("admin", "editor"), async (req, res, next) => {
   if (!KB_TABLES[req.params.entity!] || !UUID.test(req.params.id!)) return res.status(404).json({ error: "not_found" });
   try {
@@ -206,8 +228,8 @@ staffRouter.post("/kb/:entity/:id/approve", requireRole("admin", "editor"), asyn
   } catch (err) { next(err); }
 });
 
-const IMPORT_TARGETS = new Set<ImportTarget>(["programs", "fee-items", "faqs", "scholarships"]);
-const Upload = z.object({ target: z.enum(["programs", "fee-items", "faqs", "scholarships"]), format: z.enum(["csv", "json"]), content: z.string().min(1).max(2_000_000) });
+const IMPORT_TARGETS = new Set<ImportTarget>(["programs", "fee-items", "faqs", "scholarships", "intakes", "requirements", "faculties", "campuses"]);
+const Upload = z.object({ target: z.enum(["programs", "fee-items", "faqs", "scholarships", "intakes", "requirements", "faculties", "campuses"]), format: z.enum(["csv", "json"]), content: z.string().min(1).max(2_000_000) });
 
 staffRouter.post("/import/upload", requireRole("admin", "editor"), async (req, res, next) => {
   const body = Upload.safeParse(req.body);
@@ -321,11 +343,47 @@ staffRouter.patch("/settings/retention", requireRole("admin"), async (req, res, 
   } catch (err) { next(err); }
 });
 
+// Sidebar nav badges (Inbox, Unanswered): a persistent absolute count, not the transient "new since I last
+// looked" counter /alerts drives -- deliberately its own lightweight query rather than the full Overview payload,
+// since the sidebar renders on every page.
+staffRouter.get("/sidebar-counts", async (req, res, next) => {
+  try {
+    const counts = await withTenant(tenantOf(req), async (tx) => {
+      const inbox = (await tx.query(`SELECT count(*)::int AS n FROM conversations WHERE status = 'needs_human'`)).rows[0].n as number;
+      const unanswered = (await tx.query(`SELECT count(*)::int AS n FROM unanswered_questions WHERE status = 'open'`)).rows[0].n as number;
+      return { inbox, unanswered };
+    });
+    res.json(counts);
+  } catch (err) { next(err); }
+});
+
 staffRouter.get("/alerts", async (req, res, next) => {
   const since = typeof req.query.since === "string" && !Number.isNaN(Date.parse(req.query.since)) ? new Date(req.query.since) : new Date(Date.now() - 60_000);
   try {
     res.json({ data: await withTenant(tenantOf(req), (tx) => pollAlerts(tx, since)), server_time: new Date().toISOString() });
   } catch (err) { next(err); }
+});
+
+// Knowledge Base Editor's "Test chat" side panel: lets staff confirm a KB edit instantly against the real
+// agent, without leaving the editor. Reuses the same handleMessage() core the public widget/WhatsApp channels
+// call, scoped to a per-staff session id so it never collides with (or shows up mixed into) real student
+// conversations in Conversations/Inbox.
+const TestChat = z.object({ message: z.string().trim().min(1).max(1000) });
+staffRouter.post("/kb/test-chat", async (req, res, next) => {
+  const body = TestChat.safeParse(req.body);
+  if (!body.success) return res.status(400).json({ error: "invalid_request" });
+  try {
+    const out = await handleMessage({
+      tenantId: tenantOf(req),
+      channel: "web",
+      externalId: `staff-test-${req.tenant!.authUserId}`,
+      text: body.data.message,
+    });
+    res.json({ reply: out.reply, cards: out.cards });
+  } catch (err) {
+    console.error("kb test-chat failed:", err instanceof Error ? err.message : err);
+    res.status(503).json({ error: "unavailable" });
+  }
 });
 
 staffRouter.get("/knowledge/search", async (req, res, next) => {

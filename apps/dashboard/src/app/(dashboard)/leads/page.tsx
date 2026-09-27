@@ -27,7 +27,12 @@ export default function LeadsPage() {
     <div>
       <div className="flex items-center justify-between">
         <h1 className="font-heading text-[26px] font-semibold text-ink">Leads</h1>
-        <ExportButton />
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-muted" title="Google Sheets sync isn't wired up yet -- Export CSV below is the current path.">
+            <span aria-hidden>○</span> Google Sheets sync: not connected
+          </span>
+          <ExportButton />
+        </div>
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
         <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search leads…" className="rounded-lg border border-line bg-surface px-3 py-1.5 text-xs" />
