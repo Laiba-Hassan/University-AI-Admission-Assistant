@@ -24,6 +24,7 @@ export function useAlerts(enabled: boolean) {
           setToasts((t) => [...t, ...res.data.map((a) => ({ ...a, label: LABEL[a.event_type] }))].slice(-5));
           setBadge((b) => b + res.data.length);
           playChime();
+          for (const a of res.data) notify(LABEL[a.event_type]);
         }
         since.current = res.server_time;
       } catch {
@@ -71,5 +72,18 @@ function playChime() {
     osc.start(); osc.stop(audioCtx.currentTime + 0.2);
   } catch {
     // Autoplay policies can block this before any user gesture; a missed chime isn't worth surfacing an error for.
+  }
+}
+
+/** A native OS notification while this tab/window is open (background push, Phase 6A, covers the fully-closed
+ * case). Fires in any browser that has granted permission, and works unprompted inside the desktop app's
+ * wrapper window (apps/desktop grants notification permission for its own loaded origin) -- no Electron-specific
+ * code needed here, since Notification is a standard web API either way. */
+function notify(title: string) {
+  try {
+    if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+    new Notification(title, { body: "Open the dashboard to see details.", silent: true }); // playChime() already covers sound
+  } catch {
+    // Notification construction can throw in odd embedded contexts; never let a notification failure break polling.
   }
 }

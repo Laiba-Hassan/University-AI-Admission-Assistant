@@ -23,11 +23,18 @@ export default function RetentionTab() {
   async function exportData() {
     setExporting(true);
     try {
-      const [conversations, leads] = await Promise.all([
+      // Full data export (PRD 7): every entity a tenant actually owns, not just conversations/leads -- the
+      // generic /api/v1/:resource route (already used by the Knowledge Base pages) covers the rest without a
+      // second backend implementation. Each capped at 500 rows, matching that route's own max.
+      const resources = ["programs", "faculties", "campuses", "fee-items", "intakes", "requirements", "scholarships", "faqs", "knowledge-documents"] as const;
+      const [conversations, leads, ...rest] = await Promise.all([
         apiJson<{ data: unknown[] }>("/api/v1/conversations?limit=500"),
         apiJson<{ data: unknown[] }>("/api/v1/leads?limit=1000"),
+        ...resources.map((r) => apiJson<{ data: unknown[] }>(`/api/v1/${r}?limit=500`)),
       ]);
-      const blob = new Blob([JSON.stringify({ conversations: conversations.data, leads: leads.data }, null, 2)], { type: "application/json" });
+      const bundle: Record<string, unknown[]> = { conversations: conversations.data, leads: leads.data };
+      resources.forEach((r, i) => { bundle[r.replace("-", "_")] = rest[i]!.data; });
+      const blob = new Blob([JSON.stringify({ exported_at: new Date().toISOString(), ...bundle }, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url; a.download = "enrollium-data-export.json"; a.click();
