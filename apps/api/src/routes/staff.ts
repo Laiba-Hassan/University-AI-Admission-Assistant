@@ -15,7 +15,8 @@ import { listKbEntity, type KbEntity } from "../kb-entities.js";
 import { leadsToCsv, listLeads, updateLead } from "../leads.js";
 import { getOverview, type Period } from "../overview.js";
 import { getAutomationSettings, sendTestAutomationEvent, setAutomationSettings } from "../automations.js";
-import { getBranding, getChannels, getMessages, getRetention, getTeam, getUsageSummary, inviteStaff, setMessage, setRetention, updateBranding } from "../settings.js";
+import { completeOnboarding, getOnboardingStatus } from "../onboarding.js";
+import { ensureWidgetKey, getBranding, getChannels, getMessages, getRetention, getTeam, getUsageSummary, inviteStaff, rotateWidgetKey, setMessage, setRetention, setWidgetOrigins, updateBranding } from "../settings.js";
 import { createImportBatch, listImportDrafts, parseCsv, reviewImportDraft, validateRows, type ImportTarget } from "../import.js";
 import { randomBytes, createHash } from "node:crypto";
 import { draftFaqFromCluster, ignoreCluster, linkClusterToFaq, logConversationAsUnanswered } from "../unanswered.js";
@@ -161,7 +162,9 @@ staffRouter.get("/leads", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-staffRouter.get("/leads/export.csv", async (req, res, next) => {
+// RBAC audit finding: bulk-exporting every lead's PII as a CSV is a materially different action than viewing
+// leads one at a time in the UI (GET /leads, any staff role) -- restricted the same as editing a lead.
+staffRouter.get("/leads/export.csv", requireRole("admin", "editor"), async (req, res, next) => {
   try {
     const data = await withTenant(tenantOf(req), (tx) => listLeads(tx, { limit: 5000 }));
     res.setHeader("content-type", "text/csv; charset=utf-8");
@@ -319,6 +322,23 @@ staffRouter.post("/settings/channels/whatsapp", requireRole("admin"), async (req
 staffRouter.post("/settings/channels/whatsapp/disconnect", requireRole("admin"), async (req, res, next) => {
   try { await withTenant(tenantOf(req), disconnectWhatsApp); res.status(204).end(); } catch (err) { next(err); }
 });
+
+// Web widget: a tenant has no way to get a public_key at all until this exists -- ensureWidgetKey creates one
+// the first time an admin sets up the web channel (onboarding's Channels step, or this settings page directly).
+const WidgetOrigins = z.object({ allowed_origins: z.array(z.string().trim().url()).max(20) });
+staffRouter.post("/settings/channels/widget", requireRole("admin"), async (req, res, next) => {
+  const body = WidgetOrigins.safeParse(req.body);
+  if (!body.success) return res.status(400).json({ error: "invalid_request" });
+  try { res.status(201).json(await withTenant(tenantOf(req), (tx) => ensureWidgetKey(tx, body.data.allowed_origins))); } catch (err) { next(err); }
+});
+staffRouter.patch("/settings/channels/widget", requireRole("admin"), async (req, res, next) => {
+  const body = WidgetOrigins.safeParse(req.body);
+  if (!body.success) return res.status(400).json({ error: "invalid_request" });
+  try { await withTenant(tenantOf(req), (tx) => setWidgetOrigins(tx, body.data.allowed_origins)); res.status(204).end(); } catch (err) { next(err); }
+});
+staffRouter.post("/settings/channels/widget/rotate", requireRole("admin"), async (req, res, next) => {
+  try { res.json({ public_key: await withTenant(tenantOf(req), rotateWidgetKey) }); } catch (err) { next(err); }
+});
 staffRouter.get("/settings/branding", async (req, res, next) => {
   try { res.json(await withTenant(tenantOf(req), getBranding)); } catch (err) { next(err); }
 });
@@ -351,6 +371,12 @@ staffRouter.post("/settings/automations/test", requireRole("admin"), async (req,
     const result = await withTenant(tenantOf(req), (tx) => sendTestAutomationEvent(tx));
     res.status(result.ok ? 200 : 502).json(result);
   } catch (err) { next(err); }
+});
+staffRouter.get("/onboarding/status", async (req, res, next) => {
+  try { res.json(await withTenant(tenantOf(req), getOnboardingStatus)); } catch (err) { next(err); }
+});
+staffRouter.post("/onboarding/complete", requireRole("admin"), async (req, res, next) => {
+  try { await withTenant(tenantOf(req), completeOnboarding); res.status(204).end(); } catch (err) { next(err); }
 });
 staffRouter.get("/settings/team", async (req, res, next) => {
   try { res.json({ data: await withTenant(tenantOf(req), getTeam) }); } catch (err) { next(err); }
@@ -450,12 +476,14 @@ staffRouter.post("/kb/test-chat", async (req, res, next) => {
   const body = TestChat.safeParse(req.body);
   if (!body.success) return res.status(400).json({ error: "invalid_request" });
   try {
-    const out = await handleMessage({
-      tenantId: tenantOf(req),
-      channel: "web",
-      externalId: `staff-test-${req.tenant!.authUserId}`,
-      text: body.data.message,
-    });
+    const externalId = `staff-test-${req.tenant!.authUserId}`;
+    // If an earlier test in this same scratch conversation exercised the handoff tool (or someone escalated it
+    // from the Inbox), handleMessage() would otherwise stay silent forever after -- correct for a real student
+    // conversation a staff member took over, but wrong for a scratch conversation whose only purpose is to be
+    // re-tested. Reset it back to open before every test-chat call.
+    await withTenant(tenantOf(req), (tx) =>
+      tx.query(`UPDATE conversations SET status = 'open' WHERE contact_id = (SELECT id FROM contacts WHERE external_id = $1 AND channel = 'web') AND status IN ('needs_human', 'human')`, [externalId]));
+    const out = await handleMessage({ tenantId: tenantOf(req), channel: "web", externalId, text: body.data.message });
     res.json({ reply: out.reply, cards: out.cards });
   } catch (err) {
     console.error("kb test-chat failed:", err instanceof Error ? err.message : err);

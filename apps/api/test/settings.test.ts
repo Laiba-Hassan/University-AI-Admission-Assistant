@@ -89,6 +89,55 @@ describe("POST /api/v1/settings/channels/whatsapp (guided manual connection)", (
   });
 });
 
+describe("POST /api/v1/settings/channels/widget (web widget key)", () => {
+  it("is idempotent -- fixtures already gave this tenant a key, so it comes back unchanged, not a second key", async () => {
+    const before = (await (await get("/api/v1/settings/channels")).json()) as { web_widget: { public_key: string } };
+    const res = await post("/api/v1/settings/channels/widget", { allowed_origins: ["https://example.edu"] });
+    assert.equal(res.status, 201);
+    const body = (await res.json()) as { public_key: string; allowed_origins: string[] };
+    assert.equal(body.public_key, before.web_widget.public_key); // no second key created
+    // allowed_origins from this POST are only used on FIRST creation -- an existing key's origins are untouched.
+    assert.notDeepEqual(body.allowed_origins, ["https://example.edu"]);
+  });
+
+  it("PATCH replaces allowed_origins on the existing key", async () => {
+    const res = await patch("/api/v1/settings/channels/widget", { allowed_origins: ["https://a.example", "https://b.example"] });
+    assert.equal(res.status, 204);
+    const channels = (await (await get("/api/v1/settings/channels")).json()) as { web_widget: { allowed_origins: string[] } };
+    assert.deepEqual(channels.web_widget.allowed_origins, ["https://a.example", "https://b.example"]);
+  });
+
+  it("rotate issues a genuinely new public_key", async () => {
+    const before = (await (await get("/api/v1/settings/channels")).json()) as { web_widget: { public_key: string } };
+    const res = await post("/api/v1/settings/channels/widget/rotate", {});
+    assert.equal(res.status, 200);
+    const { public_key } = (await res.json()) as { public_key: string };
+    assert.notEqual(public_key, before.web_widget.public_key);
+    const after = (await (await get("/api/v1/settings/channels")).json()) as { web_widget: { public_key: string } };
+    assert.equal(after.web_widget.public_key, public_key);
+  });
+
+  it("only an admin can set up or rotate the widget key", async () => {
+    await asOwner(A, "UPDATE tenant_users SET role = 'viewer' WHERE tenant_id = current_tenant_id()");
+    assert.equal((await post("/api/v1/settings/channels/widget", { allowed_origins: [] })).status, 403);
+    assert.equal((await post("/api/v1/settings/channels/widget/rotate", {})).status, 403);
+    await asOwner(A, "UPDATE tenant_users SET role = 'admin' WHERE tenant_id = current_tenant_id()");
+  });
+
+  it("creates a real key for a tenant that has none yet", async () => {
+    const B = await withOwner((c) => createTenant(c, "SettingsNoWidget", 1000));
+    await asOwner(B, "UPDATE tenant_users SET role = 'admin' WHERE tenant_id = current_tenant_id()");
+    await asOwner(B, "DELETE FROM widget_keys WHERE tenant_id = current_tenant_id()"); // simulate the pre-onboarding state
+    const bAuth = async () => ({ authorization: `Bearer ${await staffToken(B.authUserId)}`, "content-type": "application/json" });
+    const res = await fetch(`${base}/api/v1/settings/channels/widget`, { method: "POST", headers: await bAuth(), body: JSON.stringify({ allowed_origins: ["https://new-tenant.example"] }) });
+    assert.equal(res.status, 201);
+    const body = (await res.json()) as { public_key: string; allowed_origins: string[] };
+    assert.match(body.public_key, /^wk_[0-9a-f]{32}$/);
+    assert.deepEqual(body.allowed_origins, ["https://new-tenant.example"]);
+    await deleteTenants([B.id]);
+  });
+});
+
 describe("GET/PATCH /api/v1/settings/branding", () => {
   it("reads and partially updates branding without clobbering other keys", async () => {
     await asOwner(A, "UPDATE tenants SET branding = '{\"primary\":\"#0B3D91\",\"accent\":\"#F2A900\"}'");

@@ -59,3 +59,37 @@ describe("POST /api/v1/kb/:entity/:id/approve", () => {
     await asOwner(A, "UPDATE tenant_users SET role = 'editor' WHERE tenant_id = current_tenant_id()");
   });
 });
+
+describe("POST /api/v1/kb/test-chat", () => {
+  const postJson = async (path: string, body: unknown) =>
+    fetch(`${base}${path}`, { method: "POST", headers: { ...(await auth()), "content-type": "application/json" }, body: JSON.stringify(body) });
+
+  // A single real LLM call (kept to one, deliberately: this suite already spends real Gemini quota elsewhere,
+  // and Gemini rate-limits (HTTP 429) are a real, expected condition here, not a bug -- llm.ts's own bounded
+  // retry/backoff (max ~6 attempts, capped at 60s each) means a sustained 429 surfaces as a 503
+  // "assistant_unavailable" after roughly two minutes, which this test treats as a legitimate outcome, not a
+  // failure. What actually matters for THIS test is the conversation status reset (see the fix below), which is
+  // verified at the DB level regardless of whether the model itself was reachable.
+  //
+  // Found via manual QA: once this scratch conversation's status was ever pushed to 'needs_human'/'human' (e.g.
+  // by a past test escalating it, or a staff member clicking handoff on it from the Inbox), handleMessage()
+  // correctly stays silent forever after -- right for a real student conversation someone took over, wrong for
+  // a scratch conversation that only exists to be re-tested. The route must reset it before every call.
+  it("recovers from a stuck 'human' status instead of staying silent forever", async () => {
+    const externalId = `staff-test-${A.authUserId}`;
+    await asOwner(A, `UPDATE conversations SET status = 'human' WHERE contact_id = (SELECT id FROM contacts WHERE external_id = $1 AND channel = 'web')`, [externalId]);
+
+    const res = await postJson("/api/v1/kb/test-chat", { message: "What programs do you offer?" });
+    if (res.status === 200) {
+      const body = (await res.json()) as { reply: string };
+      assert.ok(body.reply.length > 0, "expected a real reply, not the silent empty string a stuck 'human' status produces");
+    } else {
+      assert.equal(res.status, 503, "the only other acceptable outcome is a real upstream failure (e.g. rate-limited), not silent success");
+    }
+
+    // The fix under test: regardless of whether the model call itself succeeded, the route must have reset the
+    // stuck status before attempting it, so the NEXT message (whenever it's sent) won't be silently swallowed.
+    const row = await asOwner(A, `SELECT status FROM conversations WHERE contact_id = (SELECT id FROM contacts WHERE external_id = $1 AND channel = 'web')`, [externalId]);
+    assert.equal(row[0]!.status, "open");
+  });
+});

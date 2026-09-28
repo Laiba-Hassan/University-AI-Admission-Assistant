@@ -53,6 +53,15 @@ describe("GET /api/v1/leads/export.csv", () => {
     assert.match(text, /^Name,Contact,Program Interest,Source,Status,Created/);
     assert.match(text, /Bilal Rehman/);
   });
+
+  // RBAC audit finding: bulk-exporting every lead's PII is a materially different action than viewing leads one
+  // at a time in the UI, so it's restricted the same as editing a lead (admin/editor), not open to every role.
+  it("a viewer cannot bulk-export leads, even though they can list them", async () => {
+    await asOwner(A, "UPDATE tenant_users SET role = 'viewer' WHERE tenant_id = current_tenant_id()");
+    assert.equal((await get("/api/v1/leads/export.csv")).status, 403);
+    assert.equal((await get("/api/v1/leads")).status, 200);
+    await asOwner(A, "UPDATE tenant_users SET role = 'editor' WHERE tenant_id = current_tenant_id()");
+  });
 });
 
 describe("PATCH /api/v1/leads/:id", () => {

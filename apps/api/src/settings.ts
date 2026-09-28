@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import type { Tx } from "./db.js";
 
 export async function getUsageSummary(tx: Tx) {
@@ -33,6 +34,30 @@ export async function getChannels(tx: Tx) {
     `SELECT channel, phone_number_id, display_number, template_status, status, connected_at FROM channel_connections`)).rows;
   const widget = (await tx.query(`SELECT public_key, allowed_origins, status FROM widget_keys ORDER BY id LIMIT 1`)).rows[0];
   return { web_widget: widget ?? null, whatsapp: rows.find((r) => r.channel === "whatsapp") ?? null };
+}
+
+/** A tenant only ever needs one active web widget key (the loader script embeds exactly one). Creating one for
+ * a tenant that already has one is a no-op rather than a second key, since the widget only ever expects to
+ * reference the tenant's single public_key from Settings -- rotating is a separate, explicit action. */
+export async function ensureWidgetKey(tx: Tx, allowedOrigins: string[]) {
+  const existing = (await tx.query(`SELECT public_key, allowed_origins FROM widget_keys ORDER BY id LIMIT 1`)).rows[0] as
+    { public_key: string; allowed_origins: string[] } | undefined;
+  if (existing) return existing;
+  const publicKey = `wk_${randomBytes(16).toString("hex")}`;
+  await tx.query(`INSERT INTO widget_keys (tenant_id, public_key, allowed_origins) VALUES (current_tenant_id(), $1, $2)`, [publicKey, allowedOrigins]);
+  return { public_key: publicKey, allowed_origins: allowedOrigins };
+}
+
+export async function setWidgetOrigins(tx: Tx, allowedOrigins: string[]) {
+  await tx.query(`UPDATE widget_keys SET allowed_origins = $1`, [allowedOrigins]);
+}
+
+/** A genuinely new key (invalidates the old one): for a tenant that suspects its key leaked, not part of normal
+ * setup. The widget itself must be re-embedded with the new key afterward. */
+export async function rotateWidgetKey(tx: Tx) {
+  const publicKey = `wk_${randomBytes(16).toString("hex")}`;
+  await tx.query(`UPDATE widget_keys SET public_key = $1`, [publicKey]);
+  return publicKey;
 }
 
 export async function getBranding(tx: Tx) {

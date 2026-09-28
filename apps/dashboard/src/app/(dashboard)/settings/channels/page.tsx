@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { apiFetch, apiJson } from "@/lib/api";
+import { WIDGET_URL } from "@/lib/config";
 import { StatusChip } from "@/components/StatusChip";
 
 interface Channels {
@@ -28,6 +29,7 @@ export default function ChannelsTab() {
           </div>
           {data.web_widget && <StatusChip status={data.web_widget.status === "active" ? "closed" : "open"} />}
         </div>
+        {data.web_widget ? <WidgetKeyPanel widget={data.web_widget} onDone={load} /> : <WidgetSetupForm onDone={load} />}
       </div>
       <div className="pt-4">
         <div className="flex items-center justify-between">
@@ -139,5 +141,88 @@ function Field({ label, value, onChange, placeholder, type = "text", required, h
       />
       {hint && <span className="mt-1 block text-[11px] text-muted">{hint}</span>}
     </label>
+  );
+}
+
+const embedSnippet = (key: string) =>
+  `<script src="${WIDGET_URL}/loader.js" data-widget-key="${key}" data-api="${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001"}" data-widget-origin="${WIDGET_URL}"></script>`;
+
+function WidgetKeyPanel({ widget, onDone }: { widget: { public_key: string; allowed_origins: string[] }; onDone: () => void }) {
+  const [editingOrigins, setEditingOrigins] = useState(false);
+  const [origins, setOrigins] = useState(widget.allowed_origins.join("\n"));
+  const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [rotating, setRotating] = useState(false);
+
+  async function saveOrigins() {
+    setBusy(true);
+    try {
+      await apiFetch("/api/v1/settings/channels/widget", { method: "PATCH", body: JSON.stringify({ allowed_origins: origins.split("\n").map((s) => s.trim()).filter(Boolean) }) });
+      setEditingOrigins(false); onDone();
+    } finally { setBusy(false); }
+  }
+  async function copySnippet() {
+    await navigator.clipboard.writeText(embedSnippet(widget.public_key));
+    setCopied(true); setTimeout(() => setCopied(false), 2000);
+  }
+  async function rotate() {
+    if (!confirm("This immediately invalidates the current key -- the old embed snippet will stop working until you update it. Continue?")) return;
+    setRotating(true);
+    try { await apiFetch("/api/v1/settings/channels/widget/rotate", { method: "POST" }); onDone(); } finally { setRotating(false); }
+  }
+
+  return (
+    <div className="mt-3 max-w-lg space-y-3 rounded-lg border border-line p-4">
+      <div>
+        <span className="text-xs font-medium text-ink-2">Embed this on your site</span>
+        <div className="mt-1 flex items-start gap-2">
+          <pre className="flex-1 overflow-x-auto rounded-lg bg-tint px-3 py-2 text-[11px] text-ink">{embedSnippet(widget.public_key)}</pre>
+          <button onClick={copySnippet} className="shrink-0 rounded-lg border border-line px-2.5 py-1.5 text-xs font-semibold text-ink hover:bg-tint">{copied ? "Copied!" : "Copy"}</button>
+        </div>
+      </div>
+
+      {editingOrigins ? (
+        <div>
+          <span className="text-xs font-medium text-ink-2">Allowed origins (one per line -- your site's real URL(s))</span>
+          <textarea value={origins} onChange={(e) => setOrigins(e.target.value)} rows={3} className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm" placeholder="https://admissions.example.edu" />
+          <div className="mt-2 flex gap-2">
+            <button onClick={saveOrigins} disabled={busy} className="rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60">Save</button>
+            <button onClick={() => setEditingOrigins(false)} className="text-xs font-semibold text-ink-2 hover:underline">Cancel</button>
+          </div>
+        </div>
+      ) : (
+        <button onClick={() => setEditingOrigins(true)} className="text-xs font-semibold text-accent hover:underline">Edit allowed origins</button>
+      )}
+
+      <div className="border-t border-line pt-3">
+        <button onClick={rotate} disabled={rotating} className="rounded-lg border px-3 py-1.5 text-xs font-semibold hover:opacity-90 disabled:opacity-60" style={{ borderColor: "var(--chip-rejected-fg)", color: "var(--chip-rejected-fg)" }}>
+          {rotating ? "Rotating…" : "Rotate key"}
+        </button>
+        <p className="mt-1 text-[11px] text-muted">Only if this key leaked -- immediately breaks the current embed until you swap in the new one.</p>
+      </div>
+    </div>
+  );
+}
+
+function WidgetSetupForm({ onDone }: { onDone: () => void }) {
+  const [origins, setOrigins] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function setUp() {
+    setBusy(true);
+    try {
+      await apiFetch("/api/v1/settings/channels/widget", { method: "POST", body: JSON.stringify({ allowed_origins: origins.split("\n").map((s) => s.trim()).filter(Boolean) }) });
+      onDone();
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <div className="mt-3 max-w-md space-y-3 rounded-lg border border-line p-4">
+      <p className="text-xs text-ink-2">The domain(s) your site will embed the widget from -- one per line. This is what keeps other sites from using your widget key.</p>
+      <textarea value={origins} onChange={(e) => setOrigins(e.target.value)} rows={2} placeholder="https://admissions.example.edu" className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm" />
+      <button onClick={setUp} disabled={busy} className="rounded-lg bg-accent px-4 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60">
+        {busy ? "Setting up…" : "Set up web widget"}
+      </button>
+    </div>
   );
 }

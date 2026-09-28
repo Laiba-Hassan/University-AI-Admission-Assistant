@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { apiFetch, apiJson } from "@/lib/api";
+import { useStaffSession } from "@/lib/session";
 
 interface Lead {
   id: string; name: string | null; contact: string | null; program_interest: string | null;
@@ -8,6 +9,11 @@ interface Lead {
 }
 
 export default function LeadsPage() {
+  const session = useStaffSession();
+  // RBAC audit finding: PATCH /leads/:id and GET /leads/export.csv are both admin/editor-only on the backend
+  // (bulk PII export and status changes are materially different from read-only viewing), but this page showed
+  // the status dropdown and Export button to every role regardless -- a viewer's click would just 403 silently.
+  const canEdit = session.role === "admin" || session.role === "editor";
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [status, setStatus] = useState("");
   const [search, setSearch] = useState("");
@@ -31,7 +37,7 @@ export default function LeadsPage() {
           <span className="text-xs text-muted" title="Google Sheets sync isn't wired up yet -- Export CSV below is the current path.">
             <span aria-hidden>○</span> Google Sheets sync: not connected
           </span>
-          <ExportButton />
+          {canEdit && <ExportButton />}
         </div>
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
@@ -59,9 +65,13 @@ export default function LeadsPage() {
                 <td className="px-4 py-3 text-ink-2">{l.program_interest ?? "—"}</td>
                 <td className="px-4 py-3 text-ink-2">{l.source ?? "—"}</td>
                 <td className="px-4 py-3">
-                  <select value={l.status} onChange={(e) => setLeadStatus(l.id, e.target.value)} className="rounded-md border border-line bg-surface px-2 py-1 text-xs">
-                    <option value="new">New</option><option value="contacted">Contacted</option><option value="enrolled">Enrolled</option>
-                  </select>
+                  {canEdit ? (
+                    <select value={l.status} onChange={(e) => setLeadStatus(l.id, e.target.value)} className="rounded-md border border-line bg-surface px-2 py-1 text-xs">
+                      <option value="new">New</option><option value="contacted">Contacted</option><option value="enrolled">Enrolled</option>
+                    </select>
+                  ) : (
+                    <span className="chip chip-neutral capitalize">{l.status}</span>
+                  )}
                 </td>
                 <td className="px-4 py-3">{l.consent ? <span className="chip chip-approved">Yes</span> : <span className="chip chip-draft">Pending</span>}</td>
                 <td className="px-4 py-3 text-ink-2">{l.assigned_email ?? "Unassigned"}</td>

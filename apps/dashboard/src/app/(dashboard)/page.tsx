@@ -22,6 +22,7 @@ interface Overview {
   top_unanswered_questions: { question_text: string; count: number; last_seen: string }[];
 }
 interface Channels { web_widget: { status: string } | null; whatsapp: { status: string } | null }
+interface OnboardingStatus { completed: boolean }
 
 const PERIODS = [["7d", "7d"], ["30d", "30d"], ["90d", "90d"]] as const;
 
@@ -31,6 +32,7 @@ export default function OverviewPage() {
   const [data, setData] = useState<Overview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [channels, setChannels] = useState<Channels | null>(null);
+  const [onboarding, setOnboarding] = useState<OnboardingStatus | null>(null);
   const [syncedAt, setSyncedAt] = useState<Date | null>(null);
 
   useEffect(() => {
@@ -39,6 +41,8 @@ export default function OverviewPage() {
       if (!token) return;
       const res = await fetch(`${API_URL}/api/v1/settings/channels`, { headers: { authorization: `Bearer ${token}` } });
       if (res.ok) setChannels(await res.json());
+      const ob = await fetch(`${API_URL}/api/v1/onboarding/status`, { headers: { authorization: `Bearer ${token}` } });
+      if (ob.ok) setOnboarding(await ob.json());
     })();
   }, []);
 
@@ -68,7 +72,9 @@ export default function OverviewPage() {
             {channels?.web_widget && <ChannelDot label="Web" live={channels.web_widget.status === "active"} />}
             {channels?.whatsapp && <ChannelDot label="WhatsApp" live={channels.whatsapp.status === "active"} />}
             {syncedAt && <span className="text-muted">Synced {relativeTime(syncedAt)}</span>}
-            <Link href="/knowledge-base/import" className="font-semibold text-accent hover:underline">Finish tenant setup →</Link>
+            {onboarding && !onboarding.completed && (
+              <Link href="/onboarding" className="font-semibold text-accent hover:underline">Finish tenant setup →</Link>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-3">
