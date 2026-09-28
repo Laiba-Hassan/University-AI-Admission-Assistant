@@ -14,6 +14,7 @@ import { approveKbRow, KB_TABLES, listChangeHistory } from "../kb.js";
 import { listKbEntity, type KbEntity } from "../kb-entities.js";
 import { leadsToCsv, listLeads, updateLead } from "../leads.js";
 import { getOverview, type Period } from "../overview.js";
+import { defaultAiExtractProvider } from "../ai-import.js";
 import { getAutomationSettings, sendTestAutomationEvent, setAutomationSettings } from "../automations.js";
 import { completeOnboarding, getOnboardingStatus } from "../onboarding.js";
 import { ensureWidgetKey, getBranding, getChannels, getMessages, getRetention, getTeam, getUsageSummary, inviteStaff, rotateWidgetKey, setMessage, setRetention, setWidgetOrigins, updateBranding } from "../settings.js";
@@ -263,6 +264,33 @@ staffRouter.post("/import/upload", requireRole("admin", "editor"), async (req, r
     const batchId = await withTenant(tenantOf(req), async (tx) => {
       const staffRow = (await tx.query(`SELECT id FROM tenant_users WHERE auth_user_id = $1`, [req.tenant!.authUserId])).rows[0] as { id: string } | undefined;
       return createImportBatch(tx, body.data.format, body.data.target, staged, staffRow?.id ?? null);
+    });
+    res.status(201).json({ batch_id: batchId, staged: staged.filter((s) => s.ok).length, rejected: staged.filter((s) => !s.ok) });
+  } catch (err) { next(err); }
+});
+
+// PRD 7: "AI-assisted import with mandatory staged human review". Extraction only -- everything from here on
+// (validateRows, createImportBatch, the accept/reject/edit review flow) is the exact same pipeline
+// /import/upload already uses, so a row an AI extracted gets exactly as much scrutiny as a row from a hand-built
+// CSV, never less.
+const AiExtract = z.object({ target: z.enum(["programs", "fee-items", "faqs", "scholarships", "intakes", "requirements", "faculties", "campuses"]), text: z.string().trim().min(1).max(50_000) });
+staffRouter.post("/import/ai-extract", requireRole("admin", "editor"), async (req, res, next) => {
+  const body = AiExtract.safeParse(req.body);
+  if (!body.success) return res.status(400).json({ error: "invalid_request" });
+  let rows: Record<string, string>[];
+  try {
+    rows = await defaultAiExtractProvider.extract(body.data.target, body.data.text);
+  } catch (err) {
+    console.error("ai-import extraction failed:", err instanceof Error ? err.message : err);
+    return res.status(503).json({ error: "extraction_unavailable" });
+  }
+  if (rows.length === 0) return res.status(422).json({ error: "nothing_extracted" });
+  if (rows.length > 500) rows = rows.slice(0, 500); // a runaway extraction still lands as a reviewable, bounded batch
+  const staged = validateRows(body.data.target, rows);
+  try {
+    const batchId = await withTenant(tenantOf(req), async (tx) => {
+      const staffRow = (await tx.query(`SELECT id FROM tenant_users WHERE auth_user_id = $1`, [req.tenant!.authUserId])).rows[0] as { id: string } | undefined;
+      return createImportBatch(tx, "json", body.data.target, staged, staffRow?.id ?? null);
     });
     res.status(201).json({ batch_id: batchId, staged: staged.filter((s) => s.ok).length, rejected: staged.filter((s) => !s.ok) });
   } catch (err) { next(err); }

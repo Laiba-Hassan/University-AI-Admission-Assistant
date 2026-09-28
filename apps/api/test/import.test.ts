@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import type { Server } from "node:http";
 import { createTenant, deleteTenants, staffToken, withOwner, type Fixture } from "./fixtures.js";
 import { parseCsv } from "../src/import.js";
+import { defaultAiExtractProvider, type AiExtractProvider } from "../src/ai-import.js";
 
 let A: Fixture, server: Server, base: string;
 let db: typeof import("../src/db.js");
@@ -120,5 +121,55 @@ describe("POST /api/v1/import/drafts/:id/review", () => {
     assert.equal(res.status, 400);
     const body = (await res.json()) as { error: string };
     assert.equal(body.error, "insert_failed");
+  });
+});
+
+describe("POST /api/v1/import/ai-extract", () => {
+  // No real LLM call: defaultAiExtractProvider is a plain singleton, swapped out for a fake for this whole
+  // block (restored in `after`) -- the model's own extraction quality isn't what these tests are checking,
+  // it's that whatever comes back goes through the exact same validateRows/createImportBatch staging pipeline
+  // /import/upload uses, with the exact same mandatory-human-review guarantee.
+  const real = defaultAiExtractProvider.extract.bind(defaultAiExtractProvider);
+  const fake: AiExtractProvider["extract"] = async () => [{ name: "AI-found Program", code: "AIFP", degree_level: "bachelor" }];
+  after(() => { defaultAiExtractProvider.extract = real; });
+
+  it("stages what the provider extracts through the same review pipeline, not a real table", async () => {
+    defaultAiExtractProvider.extract = fake;
+    const res = await post("/api/v1/import/ai-extract", { target: "programs", text: "Some prospectus text mentioning a program." });
+    assert.equal(res.status, 201);
+    const { batch_id, staged } = (await res.json()) as { batch_id: string; staged: number };
+    assert.equal(staged, 1);
+    const before = await asOwner(A, "SELECT count(*)::int AS n FROM programs WHERE code = 'AIFP'");
+    assert.equal(before[0]!.n, 0); // not in a real table yet
+
+    const drafts = (await (await get(`/api/v1/import/drafts?batch_id=${batch_id}`)).json()) as { data: { id: string; payload: { name: string } }[] };
+    assert.equal(drafts.data[0]!.payload.name, "AI-found Program");
+    const accept = await post(`/api/v1/import/drafts/${drafts.data[0]!.id}/review`, { action: "accept" });
+    assert.equal(accept.status, 204);
+    const after = await asOwner(A, "SELECT count(*)::int AS n FROM programs WHERE code = 'AIFP'");
+    assert.equal(after[0]!.n, 1); // only after an explicit human accept
+  });
+
+  it("invalid extracted rows are reported back, not silently staged", async () => {
+    defaultAiExtractProvider.extract = async () => [{ name: "", code: "BAD", degree_level: "not-a-real-level" }];
+    const res = await post("/api/v1/import/ai-extract", { target: "programs", text: "irrelevant" });
+    assert.equal(res.status, 201);
+    const body = (await res.json()) as { staged: number; rejected: { row: number; errors: string[] }[] };
+    assert.equal(body.staged, 0);
+    assert.equal(body.rejected.length, 1);
+  });
+
+  it("a genuinely empty extraction is reported distinctly from a provider failure", async () => {
+    defaultAiExtractProvider.extract = async () => [];
+    assert.equal((await post("/api/v1/import/ai-extract", { target: "faqs", text: "nothing relevant here" })).status, 422);
+    defaultAiExtractProvider.extract = async () => { throw new Error("upstream 503"); };
+    assert.equal((await post("/api/v1/import/ai-extract", { target: "faqs", text: "x" })).status, 503);
+  });
+
+  it("only an admin or editor can use it", async () => {
+    defaultAiExtractProvider.extract = fake;
+    await asOwner(A, "UPDATE tenant_users SET role = 'viewer' WHERE tenant_id = current_tenant_id()");
+    assert.equal((await post("/api/v1/import/ai-extract", { target: "programs", text: "x" })).status, 403);
+    await asOwner(A, "UPDATE tenant_users SET role = 'editor' WHERE tenant_id = current_tenant_id()");
   });
 });

@@ -15,6 +15,7 @@ interface UploadResult { batch_id: string; staged: number; rejected: { row: numb
 function ImportForm() {
   const requested = useSearchParams().get("target") as Target | null;
   const [target, setTarget] = useState<Target>(requested && TARGETS.some(([k]) => k === requested) ? requested : "programs");
+  const [mode, setMode] = useState<"template" | "ai">("template");
   const [format, setFormat] = useState<"csv" | "json">("csv");
   const [content, setContent] = useState("");
   const [result, setResult] = useState<UploadResult | null>(null);
@@ -25,8 +26,14 @@ function ImportForm() {
   async function upload() {
     setBusy(true); setError(null);
     try {
-      const res = await apiFetch("/api/v1/import/upload", { method: "POST", body: JSON.stringify({ target, format, content }) });
-      if (!res.ok) { const b = await res.json().catch(() => ({})); throw new Error(b.error ?? `Upload failed (${res.status})`); }
+      const res = mode === "ai"
+        ? await apiFetch("/api/v1/import/ai-extract", { method: "POST", body: JSON.stringify({ target, text: content }) })
+        : await apiFetch("/api/v1/import/upload", { method: "POST", body: JSON.stringify({ target, format, content }) });
+      if (!res.ok) {
+        const b = await res.json().catch(() => ({}));
+        const messages: Record<string, string> = { nothing_extracted: "Nothing that looked relevant was found in that text -- try pasting more of the source document.", extraction_unavailable: "The AI extraction service is unavailable right now -- try again shortly, or use the CSV/JSON template instead." };
+        throw new Error(messages[b.error] ?? b.error ?? `Import failed (${res.status})`);
+      }
       const body = (await res.json()) as UploadResult;
       setResult(body);
       const d = await apiJson<{ data: Draft[] }>(`/api/v1/import/drafts?batch_id=${body.batch_id}`);
@@ -47,28 +54,41 @@ function ImportForm() {
     <div>
       <Link href="/knowledge-base" className="text-xs font-semibold text-accent hover:underline">← Back to Knowledge Base</Link>
       <h1 className="mt-2 font-heading text-[26px] font-semibold text-ink">Bulk Import</h1>
-      <p className="text-sm text-ink-2">Upload a CSV or JSON template. Nothing reaches the live Knowledge Base until you review and accept each row.</p>
+      <p className="text-sm text-ink-2">Upload a CSV/JSON template, or paste raw text for AI to extract from. Nothing reaches the live Knowledge Base until you review and accept each row.</p>
 
-      <div className="card mt-4 p-5">
+      <div className="mt-4 flex gap-1.5">
+        {(["template", "ai"] as const).map((m) => (
+          <button key={m} onClick={() => { setMode(m); setContent(""); setResult(null); setDrafts(null); setError(null); }} className={`rounded-lg border px-3 py-1.5 text-xs font-semibold ${mode === m ? "border-accent bg-tint text-accent" : "border-line text-ink-2 hover:bg-tint"}`}>
+            {m === "template" ? "CSV / JSON template" : "✨ AI-assisted (paste text)"}
+          </button>
+        ))}
+      </div>
+
+      <div className="card mt-3 p-5">
         <div className="flex flex-wrap gap-3">
           <select value={target} onChange={(e) => setTarget(e.target.value as typeof target)} className="rounded-lg border border-line bg-surface px-3 py-2 text-sm">
             {TARGETS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </select>
-          <select value={format} onChange={(e) => setFormat(e.target.value as typeof format)} className="rounded-lg border border-line bg-surface px-3 py-2 text-sm">
-            <option value="csv">CSV</option>
-            <option value="json">JSON</option>
-          </select>
+          {mode === "template" && (
+            <select value={format} onChange={(e) => setFormat(e.target.value as typeof format)} className="rounded-lg border border-line bg-surface px-3 py-2 text-sm">
+              <option value="csv">CSV</option>
+              <option value="json">JSON</option>
+            </select>
+          )}
         </div>
+        {mode === "ai" && (
+          <p className="mt-2 text-xs text-ink-2">Paste text from a prospectus, fee schedule, or similar -- an AI extracts {TARGETS.find(([v]) => v === target)![1].toLowerCase()}-shaped rows from it. Every row still needs your review below before anything is saved.</p>
+        )}
         <textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
-          placeholder={format === "csv" ? templateFor(target) : "Paste a JSON array of objects…"}
+          placeholder={mode === "ai" ? "Paste the source text here…" : format === "csv" ? templateFor(target) : "Paste a JSON array of objects…"}
           rows={8}
           className="mt-3 w-full rounded-lg border border-line bg-surface px-3 py-2 font-mono text-xs"
         />
         {error && <p className="mt-2 text-sm" style={{ color: "var(--chip-rejected-fg)" }}>{error}</p>}
         <button onClick={upload} disabled={busy || !content.trim()} className="mt-3 rounded-full bg-accent px-4 py-2 text-xs font-semibold text-white disabled:opacity-60">
-          {busy ? "Uploading…" : "Upload & validate"}
+          {busy ? (mode === "ai" ? "Extracting…" : "Uploading…") : mode === "ai" ? "Extract & validate" : "Upload & validate"}
         </button>
       </div>
 
