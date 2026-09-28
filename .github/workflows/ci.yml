@@ -23,6 +23,32 @@ jobs:
       # Cross-tenant isolation: SQL layer, then API layer (staff session, widget key, WhatsApp routing). Must stay green.
       - run: pnpm db:test
       - run: pnpm test
+      # Production builds, not just typecheck: Next.js/esbuild catch a class of build-time-only error typecheck
+      # doesn't (e.g. an invalid route export) -- exactly what an interactive dev server running alongside a
+      # `next build` never surfaces until someone runs the real build.
+      - run: pnpm widget:build
+      - run: pnpm web:build
+      - run: pnpm dashboard:build
+      # Phase 8 "load test passed": the app's own capacity under realistic concurrent traffic, against a fake
+      # LLM provider (see load-test/run.ts's own comment on why) -- fails the job if it regresses.
+      - run: pnpm load-test
+
+  desktop:
+    runs-on: windows-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @uaa/desktop typecheck
+      # Not code-signed (see apps/desktop/README.md) -- this just proves the installer still actually builds.
+      - run: pnpm --filter @uaa/desktop build
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
 
   # PRD Section 5: a ~20-question smoke set runs on every pull request against the real model, and failures block
   # merge (mark this job "required" in the branch protection rules). Skipped, with a warning, where the secret is not

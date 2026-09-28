@@ -11,6 +11,11 @@ const Env = z.object({
   DATABASE_URL: url("postgres://app_user:app_dev@localhost:5433/admission"),
   DATABASE_URL_MIGRATOR: url("postgres://app_migrator:migrator_dev@localhost:5433/admission"),
   DATABASE_URL_QUEUE: url("postgres://app_queue:queue_dev@localhost:5433/admission"),
+  // Phase 8 load test: the previous hardcoded max: 10 became the bottleneck under concurrent multi-tenant
+  // traffic (requests queueing for a pool slot showed up as a ~900ms p95 that vanished once this went up),
+  // while every actual query itself was well under 150ms -- a connection-pool ceiling, not a slow query.
+  // Configurable per deployment size rather than a second hardcoded number.
+  DB_POOL_MAX: z.coerce.number().int().positive().default(20),
   GEMINI_API_KEY: optional,
   // Chat model. Chosen by the Phase 3 bake-off on the eval set; overridable per environment.
   LLM_MODEL: z.string().default("gemini-3.6-flash"),

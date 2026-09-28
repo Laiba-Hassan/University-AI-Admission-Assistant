@@ -25,7 +25,8 @@
     "web:dev": "pnpm --filter @uaa/web dev",
     "web:build": "pnpm --filter @uaa/web build",
     "dashboard:dev": "pnpm --filter @uaa/dashboard dev",
-    "dashboard:build": "pnpm --filter @uaa/dashboard build"
+    "dashboard:build": "pnpm --filter @uaa/dashboard build",
+    "load-test": "pnpm --filter @uaa/api load-test"
   },
   "devDependencies": {
     "pg": "^8.23.0"

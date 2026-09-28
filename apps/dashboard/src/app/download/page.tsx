@@ -52,6 +52,9 @@ export default function DownloadPage() {
         <p className="mt-6 text-center text-xs text-muted">
           Prefer the browser? <Link href="/sign-in" className="font-semibold text-accent hover:underline">Sign in at the regular dashboard</Link> -- it&apos;s the same app either way.
         </p>
+        <p className="mt-2 text-center text-xs text-muted">
+          <Link href="/legal/security" className="hover:underline">Security overview</Link> · <Link href="/legal/privacy" className="hover:underline">Privacy</Link> · <Link href="/legal/terms" className="hover:underline">Terms</Link>
+        </p>
       </div>
     </div>
   );

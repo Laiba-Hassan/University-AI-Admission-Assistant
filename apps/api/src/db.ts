@@ -9,7 +9,7 @@ pg.types.setTypeParser(1082, (v) => v);
 export type Tx = pg.PoolClient;
 
 // The application connects as app_user: not an owner, no BYPASSRLS (PRD Section 3).
-export const pool = new pg.Pool({ connectionString: config.DATABASE_URL, max: 10 });
+export const pool = new pg.Pool({ connectionString: config.DATABASE_URL, max: config.DB_POOL_MAX });
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
