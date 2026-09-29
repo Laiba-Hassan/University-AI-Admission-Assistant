@@ -10,7 +10,6 @@ data/bakeoff/voice/*.m4a
 data/bakeoff/voice/*.mp4
 data/bakeoff/voice/*.wav
 .cache/
-not-needed-for-development/.cache/
 apps/api/eval/results/
 !.env.staging.example
 apps/widget/dist/
