@@ -96,7 +96,7 @@ export default function OnboardingPage() {
             </div>
           </div>
           {!status.completed && <div className="flex shrink-0 items-center gap-2">
-              <button onClick={skipToDemo} disabled={!allDone || skipping} className="rounded-lg border border-line px-4 py-2 text-xs font-semibold text-ink hover:bg-tint disabled:opacity-40">
+              <button onClick={skipToDemo} disabled={skipping} className="rounded-lg border border-line px-4 py-2 text-xs font-semibold text-ink hover:bg-tint disabled:opacity-40">
                 {skipping ? "Starting…" : "Skip for now (4-day demo)"}
               </button>
               <button onClick={() => setShowPlanModal(true)} disabled={!allDone} className="rounded-lg bg-accent px-4 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-40">
