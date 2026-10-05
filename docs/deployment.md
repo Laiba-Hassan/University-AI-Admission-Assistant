@@ -28,8 +28,13 @@ Follow `docs/staging-setup.md` end to end first — project, roles, connection s
    Vercel step.
 5. Settings → **Variables** → add every one of these (Railway has no concept of "required", it just won't boot
    correctly without them — `apps/api/src/config.ts` is the source of truth if you want to double check one):
+
+   Do **not** add `NODE_ENV` yourself — `railway.json`'s `startCommand` already sets it to `production` inline,
+   scoped to runtime only. Adding it as a Variable applies it to the *build* phase too, which makes `pnpm
+   install` skip devDependencies (confirmed the hard way: `tsx: not found`, since this API runs TypeScript
+   directly via `tsx` rather than a compiled build step).
+
    - The four Supabase connection strings + `SUPABASE_JWKS_URL` from step 1
-   - `NODE_ENV` = `production`
    - `GEMINI_API_KEY` (your existing key)
    - `SECRETS_ENCRYPTION_KEY` — generate with `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`
    - `CHALLENGE_SIGNING_SECRET` — any random string, 16+ chars
