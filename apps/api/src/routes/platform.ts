@@ -4,7 +4,7 @@ import { z } from "zod";
 import { staffCors } from "../cors.js";
 import { pool, withoutTenant, withTenant, type Tx } from "../db.js";
 import { getOverview } from "../overview.js";
-import { getTeam, inviteStaff } from "../settings.js";
+import { approvePasswordChange, getTeam, inviteStaff } from "../settings.js";
 import { resolvePlatformAdmin } from "../tenancy.js";
 
 // The Super Admin surface (PRD Phase 7, Enrollium_Super_Admin_Dashboard.pdf): access-request review, a
@@ -129,6 +129,20 @@ platformRouter.get("/tenants/:id", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// An Admin's own password-change request can only be approved here -- never by a fellow tenant Admin from
+// Settings > Team (that route explicitly refuses an admin-role target, see settings.ts's approvePasswordChange).
+// `detail.team` above already carries password_change_requested_at/approved_at per member, so no new read
+// endpoint is needed for the Super Admin UI to show which admins are waiting.
+platformRouter.post("/tenants/:id/team/:userId/approve-password-change", async (req, res, next) => {
+  try {
+    const ok = await withTenant(req.params.id, (tx) => approvePasswordChange(tx, req.params.userId, true));
+    if (!ok) return res.status(404).json({ error: "not_found" });
+    const name = (await withoutTenant((tx) => tx.query(`SELECT name FROM platform_list_tenants() WHERE id = $1`, [req.params.id]))).rows[0]?.name;
+    await withoutTenant((tx) => logPlatformAction(tx, req.platformAdmin!.email, "approved_admin_password_change", name));
+    res.status(204).end();
+  } catch (err) { next(err); }
+});
+
 const TenantStatus = z.object({ status: z.enum(["active", "suspended"]) });
 
 platformRouter.post("/tenants/:id/status", async (req, res, next) => {
@@ -158,6 +172,24 @@ platformRouter.patch("/tenants/:id/limits", async (req, res, next) => {
     const name = (await withoutTenant((tx) => tx.query(`SELECT name FROM platform_list_tenants() WHERE id = $1`, [req.params.id]))).rows[0]?.name;
     await withoutTenant((tx) => logPlatformAction(tx, req.platformAdmin!.email, "changed_usage_limit", name,
       `Monthly conversation cap ${before.rows[0].monthly_conversation_limit} → ${body.data.monthly_conversation_limit}`));
+    res.status(204).end();
+  } catch (err) { next(err); }
+});
+
+// The two sellable plans (PRD: "Web only" vs "Web + WhatsApp") reduce to this one flag -- whatsapp_enabled
+// already existed for metering/display, this is what makes it the actual plan gate (enforced for real in
+// staff.ts's POST /settings/channels/whatsapp, not just here). No separate plan table for exactly two tiers.
+const Plan = z.object({ whatsapp_enabled: z.boolean() });
+platformRouter.patch("/tenants/:id/plan", async (req, res, next) => {
+  const body = Plan.safeParse(req.body);
+  if (!body.success) return res.status(400).json({ error: "invalid_request" });
+  try {
+    const updated = await withTenant(req.params.id, (tx) =>
+      tx.query(`UPDATE tenant_limits SET whatsapp_enabled = $1 RETURNING whatsapp_enabled`, [body.data.whatsapp_enabled]));
+    if (!updated.rowCount) return res.status(404).json({ error: "not_found" });
+    const name = (await withoutTenant((tx) => tx.query(`SELECT name FROM platform_list_tenants() WHERE id = $1`, [req.params.id]))).rows[0]?.name;
+    await withoutTenant((tx) => logPlatformAction(tx, req.platformAdmin!.email, "changed_plan", name,
+      `Plan changed to ${body.data.whatsapp_enabled ? "Web + WhatsApp" : "Web only"}`));
     res.status(204).end();
   } catch (err) { next(err); }
 });

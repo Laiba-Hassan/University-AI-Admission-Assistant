@@ -8,6 +8,7 @@ import { chatRouter } from "./routes/chat.js";
 import { platformRouter } from "./routes/platform.js";
 import { publicStaffRouter } from "./routes/public-staff.js";
 import { staffRouter } from "./routes/staff.js";
+import { stripeWebhookRouter } from "./routes/stripe-webhook.js";
 import { widgetRouter } from "./routes/widget.js";
 import { whatsappRouter } from "./routes/whatsapp.js";
 
@@ -18,9 +19,11 @@ export function createApp(enqueue: Enqueue, challenge?: ChallengeVerifier, llmPr
   // client IP (for rate limiting) instead of the proxy's own address. Harmless for local development (no proxy).
   app.set("trust proxy", 1);
 
-  // The webhook needs the raw body for signature verification, so it is mounted before the JSON parser.
+  // Both webhooks need the raw body for signature verification, so both are mounted before the JSON parser.
   app.use("/webhooks/whatsapp", whatsappRouter(enqueue));
-  app.use(express.json({ limit: "100kb" }));
+  app.use("/webhooks/stripe", stripeWebhookRouter());
+  // 1mb, not 100kb: branding.logo carries a base64 data URL (up to ~300KB of image -> ~400KB encoded).
+  app.use(express.json({ limit: "1mb" }));
 
   app.get("/healthz", async (_req, res) => {
     try { await pool.query("SELECT 1"); res.json({ ok: true }); } catch { res.status(503).json({ ok: false }); }

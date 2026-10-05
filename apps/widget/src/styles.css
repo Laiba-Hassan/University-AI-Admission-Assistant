@@ -50,6 +50,7 @@ html, body { margin: 0; height: 100%; font-family: -apple-system, BlinkMacSystem
 .uaa-card { max-width: 85%; border: 1px solid var(--uaa-border); border-radius: 12px; padding: 10px 12px; margin-top: 2px; background: var(--uaa-bg); box-shadow: 0 1px 3px rgba(0,0,0,.05); }
 .uaa-card-stale { border-color: #F59E0B; }
 .uaa-card-label { font-size: 11px; color: var(--uaa-muted); }
+.uaa-staff-label { font-size: 11px; font-weight: 600; color: var(--uaa-muted); margin: 0 16px 2px; }
 .uaa-card-value { font-weight: 700; font-size: 15.5px; color: var(--uaa-primary); }
 .uaa-card-asof { font-size: 10.5px; color: var(--uaa-muted); margin-top: 2px; }
 
@@ -81,12 +82,11 @@ html, body { margin: 0; height: 100%; font-family: -apple-system, BlinkMacSystem
 .uaa-mic-active { background: #d92c2c; border-color: #d92c2c; color: #fff; animation: uaa-pulse 1.4s ease-in-out infinite; }
 @keyframes uaa-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(217,44,44,.35); } 50% { box-shadow: 0 0 0 6px rgba(217,44,44,0); } }
 .uaa-recording-indicator { display: flex; align-items: center; gap: 7px; padding: 6px 16px; font-size: 12px; color: #d92c2c; font-weight: 500; }
-.uaa-rec-dot { width: 8px; height: 8px; border-radius: 50%; background: #d92c2c; animation: uaa-pulse 1.4s ease-in-out infinite; }
+.uaa-wave { display: inline-flex; align-items: center; gap: 2px; height: 14px; }
+.uaa-wave-bar { width: 2.5px; height: 4px; border-radius: 2px; background: #d92c2c; transition: height 0.08s ease-out; }
 .uaa-mic-denied { margin: 0 16px 10px; font-size: 11.5px; color: var(--uaa-muted); }
 .uaa-welcome-voice-notice { margin-top: 6px; font-size: 11.5px; color: var(--uaa-muted); }
 
-.uaa-handoff { display: inline-flex; align-items: center; gap: 6px; margin: 0 16px 12px; align-self: flex-start; background: var(--uaa-surface); border: 1px solid var(--uaa-border); color: var(--uaa-text); font-size: 12px; font-weight: 500; border-radius: 999px; cursor: pointer; padding: 6px 12px; }
-.uaa-handoff:hover { border-color: var(--uaa-primary); color: var(--uaa-primary); }
 
 .uaa-unavailable { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 28px; color: var(--uaa-muted); gap: 6px; }
 

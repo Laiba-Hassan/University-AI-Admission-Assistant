@@ -39,14 +39,36 @@ const Env = z.object({
   VAPID_PRIVATE_KEY: optional,
   VAPID_SUBJECT: z.string().default("mailto:admin@enrollium.app"),
 
+  // Self-service plan billing (billing.ts): test-mode Stripe keys. Unset = /billing routes return
+  // stripe_not_configured instead of failing, same "silently unavailable until configured" pattern as VAPID/SMTP.
+  // The publishable key is handed to the dashboard via the API response, not NEXT_PUBLIC_*, mirroring how
+  // TURNSTILE_SITE_KEY already reaches the widget through /api/widget/config.
+  STRIPE_SECRET_KEY: optional,
+  STRIPE_PUBLISHABLE_KEY: optional,
+  // Signs/verifies the Stripe webhook (Developers > Webhooks > this endpoint's "Signing secret"). Unset = the
+  // webhook route refuses every request rather than trusting an unverified one -- same fail-closed posture the
+  // WhatsApp webhook already has for WHATSAPP_APP_SECRET.
+  STRIPE_WEBHOOK_SECRET: optional,
+
+  // Outbound email (staff invites). Unset = email.ts silently no-ops, same pattern as VAPID above -- the invite
+  // still gets created either way, the caller just falls back to showing a copyable link instead.
+  SMTP_HOST: optional,
+  SMTP_PORT: z.coerce.number().int().default(587),
+  SMTP_USER: optional,
+  SMTP_PASS: optional,
+  SMTP_FROM: optional,
+
   // Phase 4: public widget hardening (PRD Section 11, enforced "from the first public deployment").
   TURNSTILE_SITE_KEY: optional,   // public; handed to the widget via /api/widget/config
   TURNSTILE_SECRET_KEY: optional, // server-side verification; unset = challenge always fails closed
   // Signs the short-lived "challenge passed" token a session presents to start a new conversation.
   // A fixed dev-only default keeps local/test runs working without extra setup; production must override it.
   CHALLENGE_SIGNING_SECRET: dev ? z.string().default("dev-only-challenge-secret-do-not-use-in-prod") : z.string().min(16),
-  // Hard cap on tokens (input+output, summed) spent on one conversation, so a single runaway thread can't run up cost.
-  MAX_CONVERSATION_TOKENS: z.coerce.number().int().positive().default(20_000),
+  // Hard cap on tokens (input+output, summed) spent on one conversation, so a single runaway thread can't run up
+  // cost. 20k was too conservative -- a real conversation measured during testing hit it after just 4 genuine
+  // exchanges (tool-calling turns run 3k-6k tokens each), silently cutting the AI off during completely normal
+  // use. 150k covers roughly 25-30 real exchanges, which is a long conversation, not routine ones.
+  MAX_CONVERSATION_TOKENS: z.coerce.number().int().positive().default(150_000),
   // Per-window request caps for the public widget endpoints (PRD: per-IP / per-session / per-tenant).
   RATE_LIMIT_PER_IP_PER_MINUTE: z.coerce.number().int().positive().default(20),
   RATE_LIMIT_PER_SESSION_PER_MINUTE: z.coerce.number().int().positive().default(10),

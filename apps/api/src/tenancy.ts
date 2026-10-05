@@ -4,7 +4,15 @@ import { config } from "./config.js";
 import { withoutTenant } from "./db.js";
 
 export type Role = "admin" | "editor" | "viewer";
-export interface TenantContext { id: string; via: "session" | "widget" | "whatsapp"; role?: Role; authUserId?: string }
+export interface TenantContext { id: string; via: "session" | "widget" | "whatsapp"; role?: Role; authUserId?: string; tokenName?: string }
+
+/** Google/other OAuth providers put the real display name here (Supabase's own convention); email/password
+ * sign-up never has one. Read straight from the already-verified JWT -- no extra Supabase API call needed. */
+const nameFromTokenPayload = (payload: Record<string, unknown>): string | undefined => {
+  const meta = payload.user_metadata as Record<string, unknown> | undefined;
+  const name = meta?.full_name ?? meta?.name;
+  return typeof name === "string" && name.trim() ? name.trim() : undefined;
+};
 
 declare global {
   namespace Express {
@@ -77,7 +85,7 @@ export const resolveStaffTenant: RequestHandler = async (req, res, next) => {
     const wanted = req.header("x-tenant-id");
     const chosen = wanted ? memberships.find((m) => m.tenant_id === wanted) : memberships.length === 1 ? memberships[0] : undefined;
     if (!chosen) return deny(res, 403, "forbidden");
-    req.tenant = { id: chosen.tenant_id, via: "session", role: chosen.role, authUserId: payload.sub };
+    req.tenant = { id: chosen.tenant_id, via: "session", role: chosen.role, authUserId: payload.sub, tokenName: nameFromTokenPayload(payload) };
     next();
   } catch (err) {
     if (err instanceof errors.JOSEError) return deny(res, 401, "unauthorized");

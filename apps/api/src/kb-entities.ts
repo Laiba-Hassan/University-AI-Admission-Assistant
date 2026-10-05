@@ -94,7 +94,7 @@ export async function listKbEntity(tx: Tx, entity: KbEntity): Promise<EntityResu
       return { rows, warning: gap ? { count: 1, detail: `${gap.name} terms have not been finalized` } : null };
     }
     case "faqs": {
-      const rows = (await tx.query(`SELECT id, question, answer, approved FROM faqs ORDER BY question`)).rows;
+      const rows = (await tx.query(`SELECT id, question, answer, approved, featured FROM faqs ORDER BY question`)).rows;
       const gap = (await tx.query(`SELECT question FROM faqs WHERE answer = '' ORDER BY question LIMIT 1`)).rows[0] as { question: string } | undefined;
       return { rows, warning: gap ? { count: 1, detail: `"${gap.question}" has no answer on record` } : null };
     }

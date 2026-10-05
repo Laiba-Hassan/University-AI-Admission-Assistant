@@ -62,7 +62,18 @@ describe("Web push subscribe/unsubscribe", () => {
 });
 
 describe("POST /api/v1/settings/channels/whatsapp (guided manual connection)", () => {
-  it("connects, masks the token in the response, never returns it again, and disconnect clears it", async () => {
+  it("refuses to connect on the Web-only plan (tenant_limits.whatsapp_enabled defaults to false)", async () => {
+    const res = await post("/api/v1/settings/channels/whatsapp", { phone_number_id: "123456789", access_token: "EAAsecrettoken1234" });
+    assert.equal(res.status, 403);
+    assert.deepEqual(await res.json(), { error: "plan_upgrade_required" });
+    // GET /settings/channels must agree with the route's own refusal -- this is what the Channels page reads to
+    // show an upgrade prompt instead of a connect form that would only fail once submitted.
+    const channels = (await (await get("/api/v1/settings/channels")).json()) as { whatsapp_enabled: boolean };
+    assert.equal(channels.whatsapp_enabled, false);
+  });
+
+  it("connects, masks the token in the response, never returns it again, and disconnect clears it, once the plan allows WhatsApp", async () => {
+    await asOwner(A, "UPDATE tenant_limits SET whatsapp_enabled = true WHERE tenant_id = current_tenant_id()"); // simulates Super Admin upgrading the plan
     const res = await post("/api/v1/settings/channels/whatsapp", {
       phone_number_id: "123456789", waba_id: "waba1", display_number: "+1 555 0100", access_token: "EAAsecrettoken1234", template_name: "admissions_followup",
     });
@@ -193,6 +204,48 @@ describe("Team + invite", () => {
     await asOwner(A, "UPDATE tenant_users SET role = 'editor' WHERE tenant_id = current_tenant_id()");
     assert.equal((await post("/api/v1/settings/team/invite", { email: "x@y.com", role: "viewer" })).status, 403);
     await asOwner(A, "UPDATE tenant_users SET role = 'admin' WHERE tenant_id = current_tenant_id()");
+  });
+});
+
+describe("Password change approval", () => {
+  it("a non-admin's request moves through none -> pending -> approved -> none (consumed), approved by a tenant Admin", async () => {
+    const viewerAuthId = (await asOwner(A, "SELECT gen_random_uuid() AS id"))[0]!.id as string;
+    await asOwner(A, "INSERT INTO tenant_users (tenant_id, auth_user_id, email, role) VALUES (current_tenant_id(), $1, 'viewer-pw@settings.test', 'viewer')", [viewerAuthId]);
+    const viewerHeaders = { authorization: `Bearer ${await staffToken(viewerAuthId)}` };
+    const viewerGet = (path: string) => fetch(`${base}${path}`, { headers: viewerHeaders });
+    const viewerPost = (path: string, body: unknown) => fetch(`${base}${path}`, { method: "POST", headers: { ...viewerHeaders, "content-type": "application/json" }, body: JSON.stringify(body) });
+
+    assert.equal((await (await viewerGet("/api/v1/me")).json()).passwordChangeStatus, "none");
+    assert.equal((await viewerPost("/api/v1/me/password-change-request", {})).status, 204);
+    assert.equal((await (await viewerGet("/api/v1/me")).json()).passwordChangeStatus, "pending");
+
+    const viewerId = (await asOwner(A, "SELECT id FROM tenant_users WHERE auth_user_id = $1", [viewerAuthId]))[0]!.id as string;
+    assert.equal((await post(`/api/v1/settings/team/${viewerId}/approve-password-change`, {})).status, 204); // A is admin
+    assert.equal((await (await viewerGet("/api/v1/me")).json()).passwordChangeStatus, "approved");
+
+    assert.equal((await viewerPost("/api/v1/me/password-change-consumed", {})).status, 204);
+    assert.equal((await (await viewerGet("/api/v1/me")).json()).passwordChangeStatus, "none");
+  });
+
+  it("an Admin's own request is NOT approvable by a fellow tenant Admin (must go through the platform)", async () => {
+    const otherAdminAuthId = (await asOwner(A, "SELECT gen_random_uuid() AS id"))[0]!.id as string;
+    await asOwner(A, "INSERT INTO tenant_users (tenant_id, auth_user_id, email, role) VALUES (current_tenant_id(), $1, 'other-admin-pw@settings.test', 'admin')", [otherAdminAuthId]);
+    const otherAdminId = (await asOwner(A, "SELECT id FROM tenant_users WHERE auth_user_id = $1", [otherAdminAuthId]))[0]!.id as string;
+    const otherAdminToken = await staffToken(otherAdminAuthId);
+    await fetch(`${base}/api/v1/me/password-change-request`, { method: "POST", headers: { authorization: `Bearer ${otherAdminToken}`, "content-type": "application/json" }, body: "{}" });
+
+    // A is also an admin in this tenant, but the tenant-level route refuses an admin-role target outright.
+    const res = await post(`/api/v1/settings/team/${otherAdminId}/approve-password-change`, {});
+    assert.equal(res.status, 404);
+    const row = await asOwner(A, "SELECT password_change_approved_at FROM tenant_users WHERE id = $1", [otherAdminId]);
+    assert.equal(row[0]!.password_change_approved_at, null);
+  });
+
+  it("GET /me no longer special-cases admins -- their own request shows pending/approved like anyone else's", async () => {
+    assert.equal((await (await get("/api/v1/me")).json()).passwordChangeStatus, "none"); // A hasn't requested yet
+    assert.equal((await post("/api/v1/me/password-change-request", {})).status, 204);
+    assert.equal((await (await get("/api/v1/me")).json()).passwordChangeStatus, "pending");
+    await asOwner(A, "UPDATE tenant_users SET password_change_requested_at = NULL, password_change_approved_at = NULL WHERE auth_user_id = $1", [A.authUserId]); // reset for other tests
   });
 });
 

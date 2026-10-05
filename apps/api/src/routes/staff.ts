@@ -1,7 +1,9 @@
 import { Router } from "express";
 import { z } from "zod";
 import { pollAlerts } from "../alerts.js";
+import { choosePlan, createSetupIntent, getBillingStatus, startDemo, type Plan } from "../billing.js";
 import { config } from "../config.js";
+import { sendEmail } from "../email.js";
 import { deletePushSubscription, savePushSubscription } from "../push.js";
 import { handleMessage } from "../agent/conversation.js";
 import { deliverStaffReplyOverWhatsApp } from "../whatsapp/staff-reply.js";
@@ -10,20 +12,21 @@ import { assignConversationToSelf, escalateConversation, getConversationDetail, 
 import { staffCors } from "../cors.js";
 import { withTenant } from "../db.js";
 import { searchKnowledge } from "../knowledge.js";
-import { approveKbRow, KB_TABLES, listChangeHistory } from "../kb.js";
+import { approveKbRow, KB_TABLES, listChangeHistory, setFaqFeatured } from "../kb.js";
 import { listKbEntity, type KbEntity } from "../kb-entities.js";
 import { leadsToCsv, listLeads, updateLead } from "../leads.js";
 import { getOverview, type Period } from "../overview.js";
 import { defaultAiExtractProvider } from "../ai-import.js";
 import { getAutomationSettings, sendTestAutomationEvent, setAutomationSettings } from "../automations.js";
 import { completeOnboarding, getOnboardingStatus } from "../onboarding.js";
-import { ensureWidgetKey, getBranding, getChannels, getMessages, getRetention, getTeam, getUsageSummary, inviteStaff, rotateWidgetKey, setMessage, setRetention, setWidgetOrigins, updateBranding } from "../settings.js";
+import { approvePasswordChange, consumePasswordChangeApproval, ensureWidgetKey, getBranding, getChannels, getMessages, getRetention, getTeam, getUsageSummary, inviteStaff, removeTeamMember, requestPasswordChange, rotateWidgetKey, setMessage, setRetention, setWidgetOrigins, updateBranding } from "../settings.js";
 import { createImportBatch, listImportDrafts, parseCsv, reviewImportDraft, validateRows, type ImportTarget } from "../import.js";
 import { randomBytes, createHash } from "node:crypto";
 import { draftFaqFromCluster, ignoreCluster, linkClusterToFaq, logConversationAsUnanswered } from "../unanswered.js";
 import { requireRole, resolveStaffTenant, tenantOf } from "../tenancy.js";
 
-const PERIODS = new Set<Period>(["7d", "30d", "90d"]);
+const PERIODS = new Set<Period>(["7d", "30d", "90d", "custom"]);
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 // Staff dashboard read API. Deliberately no `WHERE tenant_id = ...` here: isolation comes from RLS under the
 // per-transaction tenant context, so the API tests exercise the database guarantee itself, not app-side filtering.
@@ -54,15 +57,74 @@ staffRouter.use(staffCors, resolveStaffTenant, requireRole("admin", "editor", "v
 
 staffRouter.get("/me", async (req, res, next) => {
   try {
-    const tenant = await withTenant(tenantOf(req), async (tx) => (await tx.query("SELECT name, plan_label FROM tenants")).rows[0] as { name: string; plan_label: string } | undefined);
-    res.json({ tenantId: req.tenant!.id, role: req.tenant!.role, tenantName: tenant?.name, planLabel: tenant?.plan_label });
+    const tenant = await withTenant(tenantOf(req), async (tx) =>
+      (await tx.query(
+        `SELECT t.name, t.plan_label, t.demo_expires_at, t.branding->>'logo' AS logo, b.payment_failed_at
+           FROM tenants t LEFT JOIN tenant_billing b ON b.tenant_id = t.id`)).rows[0] as
+        { name: string; plan_label: string; demo_expires_at: string | null; logo: string | null; payment_failed_at: string | null } | undefined);
+    const self = await withTenant(tenantOf(req), async (tx) =>
+      // Google/other OAuth sign-ins already carry a real name in the verified token (tokenName) -- the first time
+      // this is seen for an account with no full_name on file yet, it's saved so the Team page (which has no
+      // access to anyone else's token) can show it too. A name set later in Account Settings always wins, via
+      // COALESCE(full_name, ...): this never overwrites one a staff member chose themselves.
+      (await tx.query(
+        `UPDATE tenant_users SET full_name = COALESCE(full_name, $2) WHERE auth_user_id = $1
+         RETURNING full_name, avatar_url, password_change_requested_at, password_change_approved_at`,
+        [req.tenant!.authUserId, req.tenant!.tokenName ?? null])).rows[0] as
+        { full_name: string | null; avatar_url: string | null; password_change_requested_at: string | null; password_change_approved_at: string | null } | undefined);
+    // Everyone goes through the same request/approve dance now -- an Editor/Viewer's request is approved by a
+    // tenant Admin (settings.ts's approvePasswordChange with requireAdminTarget=false), an Admin's own request
+    // can only be approved by the platform (Super Admin) team, via POST /api/platform/.../approve-password-change
+    // (requireAdminTarget=true) -- never by a fellow tenant Admin. Same three states either way.
+    const passwordChangeStatus = self?.password_change_approved_at ? "approved"
+      : self?.password_change_requested_at ? "pending" : "none";
+    res.json({
+      tenantId: req.tenant!.id, role: req.tenant!.role, tenantName: tenant?.name, planLabel: tenant?.plan_label, tenantLogo: tenant?.logo ?? null,
+      demoExpiresAt: tenant?.demo_expires_at ?? null, paymentFailedAt: tenant?.payment_failed_at ?? null,
+      fullName: self?.full_name ?? null, avatarUrl: self?.avatar_url ?? null, passwordChangeStatus,
+    });
+  } catch (err) { next(err); }
+});
+staffRouter.post("/me/password-change-request", async (req, res, next) => {
+  try {
+    await withTenant(tenantOf(req), (tx) => requestPasswordChange(tx, req.tenant!.authUserId!));
+    res.status(204).end();
+  } catch (err) { next(err); }
+});
+// Called by the client right after supabase.auth.updateUser({password}) actually succeeds -- our backend has no
+// visibility into that call (it goes straight to Supabase, not through this API), so it can't detect "they just
+// changed it" on its own. This is what makes an approval single-use instead of a standing bypass.
+staffRouter.post("/me/password-change-consumed", async (req, res, next) => {
+  try {
+    await withTenant(tenantOf(req), (tx) => consumePasswordChangeApproval(tx, req.tenant!.authUserId!));
+    res.status(204).end();
+  } catch (err) { next(err); }
+});
+const MePatch = z.object({ avatar_url: z.string().max(400_000).nullable().optional(), full_name: z.string().trim().min(1).max(200).optional() });
+staffRouter.patch("/me", async (req, res, next) => {
+  const body = MePatch.safeParse(req.body);
+  if (!body.success) return res.status(400).json({ error: "invalid_request" });
+  try {
+    await withTenant(tenantOf(req), async (tx) => {
+      if ("avatar_url" in body.data) await tx.query(`UPDATE tenant_users SET avatar_url = $1 WHERE auth_user_id = $2`, [body.data.avatar_url, req.tenant!.authUserId]);
+      if (body.data.full_name !== undefined) await tx.query(`UPDATE tenant_users SET full_name = $1 WHERE auth_user_id = $2`, [body.data.full_name, req.tenant!.authUserId]);
+    });
+    res.status(204).end();
   } catch (err) { next(err); }
 });
 
 staffRouter.get("/overview", async (req, res, next) => {
   const period = (typeof req.query.period === "string" && PERIODS.has(req.query.period as Period) ? req.query.period : "30d") as Period;
+  let custom: { from: Date; to: Date } | undefined;
+  if (period === "custom") {
+    const start = req.query.start, end = req.query.end;
+    if (typeof start !== "string" || typeof end !== "string" || !DATE.test(start) || !DATE.test(end)) return res.status(400).json({ error: "invalid_request" });
+    const from = new Date(`${start}T00:00:00.000Z`), to = new Date(`${end}T23:59:59.999Z`);
+    if (!(from < to)) return res.status(400).json({ error: "invalid_request" });
+    custom = { from, to };
+  }
   try {
-    res.json(await withTenant(tenantOf(req), (tx) => getOverview(tx, period)));
+    res.json(await withTenant(tenantOf(req), (tx) => getOverview(tx, period, custom)));
   } catch (err) { next(err); }
 });
 
@@ -118,14 +180,16 @@ staffRouter.post("/conversations/:id/reply", requireRole("admin", "editor"), asy
   if (!body.success) return res.status(400).json({ error: "invalid_request" });
   try {
     const result = await withTenant(tenantOf(req), async (tx) => {
-      const msg = await sendStaffReply(tx, req.params.id!, body.data.text);
-      if (!msg) return null;
+      const staffRow = (await tx.query(`SELECT id FROM tenant_users WHERE auth_user_id = $1`, [req.tenant!.authUserId])).rows[0] as { id: string } | undefined;
+      if (!staffRow) return { ok: false as const, error: "not_found" as const };
+      const sent = await sendStaffReply(tx, req.params.id!, body.data.text, staffRow.id);
+      if (!sent.ok) return sent;
       // WhatsApp two-way handoff (PRD 6A/6.3): a web conversation, or one with no WhatsApp connection, makes
       // this a no-op -- the reply already exists for the dashboard either way.
       const delivery = await deliverStaffReplyOverWhatsApp(tx, req.params.id!, body.data.text);
-      return { msg, delivery };
+      return { ok: true as const, msg: sent.message, delivery };
     });
-    if (!result) return res.status(404).json({ error: "not_found" });
+    if (!result.ok) return res.status(404).json({ error: "not_found" });
     res.status(201).json({ ...result.msg, delivery: result.delivery });
   } catch (err) { next(err); }
 });
@@ -153,10 +217,15 @@ staffRouter.post("/conversations/:id/log-unanswered", requireRole("admin", "edit
 
 staffRouter.get("/leads", async (req, res, next) => {
   const q = req.query;
+  if ((typeof q.from === "string" && q.from && !DATE.test(q.from)) || (typeof q.to === "string" && q.to && !DATE.test(q.to))) {
+    return res.status(400).json({ error: "invalid_request" });
+  }
   try {
     const data = await withTenant(tenantOf(req), (tx) => listLeads(tx, {
       status: typeof q.status === "string" && ["new", "contacted", "enrolled"].includes(q.status) ? q.status as never : undefined,
       search: typeof q.search === "string" ? q.search.slice(0, 200) : undefined,
+      from: typeof q.from === "string" && q.from ? new Date(`${q.from}T00:00:00.000Z`) : undefined,
+      to: typeof q.to === "string" && q.to ? new Date(`${q.to}T23:59:59.999Z`) : undefined,
       limit: Math.min(Math.max(Number(q.limit) || 200, 1), 1000),
     }));
     res.json({ data });
@@ -240,6 +309,17 @@ staffRouter.post("/kb/:entity/:id/approve", requireRole("admin", "editor"), asyn
       return approveKbRow(tx, req.params.entity!, req.params.id!, staffRow?.id ?? null);
     });
     if (!result?.approved) return res.status(404).json({ error: "not_found" });
+    res.status(204).end();
+  } catch (err) { next(err); }
+});
+const FaqFeature = z.object({ featured: z.boolean() });
+staffRouter.post("/kb/faqs/:id/feature", requireRole("admin", "editor"), async (req, res, next) => {
+  if (!UUID.test(req.params.id!)) return res.status(404).json({ error: "not_found" });
+  const body = FaqFeature.safeParse(req.body);
+  if (!body.success) return res.status(400).json({ error: "invalid_request" });
+  try {
+    const ok = await withTenant(tenantOf(req), (tx) => setFaqFeatured(tx, req.params.id!, body.data.featured));
+    if (!ok) return res.status(404).json({ error: "not_found" });
     res.status(204).end();
   } catch (err) { next(err); }
 });
@@ -340,11 +420,18 @@ staffRouter.post("/settings/channels/whatsapp", requireRole("admin"), async (req
   const body = ConnectWhatsApp.safeParse(req.body);
   if (!body.success) return res.status(400).json({ error: "invalid_request" });
   try {
-    const result = await withTenant(tenantOf(req), (tx) => saveWhatsAppConnection(tx, {
-      phoneNumberId: body.data.phone_number_id, wabaId: body.data.waba_id, displayNumber: body.data.display_number,
-      accessToken: body.data.access_token, templateName: body.data.template_name,
-    }));
-    res.status(201).json(result);
+    const result = await withTenant(tenantOf(req), async (tx) => {
+      // The real gate: Channels already hides the connect form behind this same flag, but the plan is only
+      // actually enforced here -- a direct API call must refuse exactly like the UI implies it would.
+      const whatsappEnabled = (await tx.query(`SELECT whatsapp_enabled FROM tenant_limits`)).rows[0]?.whatsapp_enabled as boolean ?? false;
+      if (!whatsappEnabled) return { blocked: true as const };
+      return { blocked: false as const, saved: await saveWhatsAppConnection(tx, {
+        phoneNumberId: body.data.phone_number_id, wabaId: body.data.waba_id, displayNumber: body.data.display_number,
+        accessToken: body.data.access_token, templateName: body.data.template_name,
+      }) };
+    });
+    if (result.blocked) return res.status(403).json({ error: "plan_upgrade_required" });
+    res.status(201).json(result.saved);
   } catch (err) { next(err); }
 });
 staffRouter.post("/settings/channels/whatsapp/disconnect", requireRole("admin"), async (req, res, next) => {
@@ -371,8 +458,9 @@ staffRouter.get("/settings/branding", async (req, res, next) => {
   try { res.json(await withTenant(tenantOf(req), getBranding)); } catch (err) { next(err); }
 });
 const BrandingPatch = z.object({
-  branding: z.object({ primary: z.string().optional(), accent: z.string().optional(), tagline: z.string().optional() }).partial().optional(),
+  branding: z.object({ primary: z.string().optional(), accent: z.string().optional(), tagline: z.string().optional(), logo: z.string().max(400_000).nullable().optional() }).partial().optional(),
   working_hours: z.object({ tz: z.string(), mon_fri: z.string().nullable(), sat: z.string().nullable(), sun: z.string().nullable() }).optional(),
+  welcome_message: z.string().trim().min(1).max(1000).optional(),
 });
 staffRouter.patch("/settings/branding", requireRole("admin", "editor"), async (req, res, next) => {
   const body = BrandingPatch.safeParse(req.body);
@@ -406,8 +494,61 @@ staffRouter.get("/onboarding/status", async (req, res, next) => {
 staffRouter.post("/onboarding/complete", requireRole("admin"), async (req, res, next) => {
   try { await withTenant(tenantOf(req), completeOnboarding); res.status(204).end(); } catch (err) { next(err); }
 });
+
+// "Skip" beside Go live: starts the time-limited demo (PLAN_WHATSAPP default off) and still marks onboarding
+// complete -- skipping a plan isn't the same as skipping setup; they still land on the real dashboard.
+staffRouter.post("/onboarding/start-demo", requireRole("admin"), async (req, res, next) => {
+  try {
+    await withTenant(tenantOf(req), async (tx) => { await startDemo(tx); await completeOnboarding(tx); });
+    res.status(204).end();
+  } catch (err) { next(err); }
+});
+
+staffRouter.get("/billing/status", async (req, res, next) => {
+  try { res.json(await withTenant(tenantOf(req), getBillingStatus)); } catch (err) { next(err); }
+});
+// Step 1 of Update Plan / Go Live: mints a Stripe SetupIntent the dashboard confirms client-side against
+// Stripe's own hosted card field -- see billing.ts for why the raw card never reaches this route at all.
+staffRouter.post("/billing/setup-intent", requireRole("admin"), async (req, res, next) => {
+  try {
+    const intent = await withTenant(tenantOf(req), async (tx) => {
+      const tenantName = (await tx.query(`SELECT name FROM tenants`)).rows[0]?.name as string | undefined;
+      const email = (await tx.query(`SELECT email FROM tenant_users WHERE auth_user_id = $1`, [req.tenant!.authUserId])).rows[0]?.email as string | undefined;
+      return createSetupIntent(tx, tenantName ?? "University", email ?? "");
+    });
+    if (!intent) return res.status(503).json({ error: "stripe_not_configured" });
+    res.json(intent);
+  } catch (err) { next(err); }
+});
+const ChoosePlan = z.object({ plan: z.enum(["starter", "growth"]), payment_method_id: z.string().trim().min(1) });
+staffRouter.post("/billing/choose-plan", requireRole("admin"), async (req, res, next) => {
+  const body = ChoosePlan.safeParse(req.body);
+  if (!body.success) return res.status(400).json({ error: "invalid_request" });
+  try {
+    const result = await withTenant(tenantOf(req), (tx) => choosePlan(tx, body.data.plan as Plan, body.data.payment_method_id));
+    if (!result.ok) return res.status(result.error === "stripe_not_configured" ? 503 : 400).json({ error: result.error });
+    res.status(204).end();
+  } catch (err) { next(err); }
+});
 staffRouter.get("/settings/team", async (req, res, next) => {
   try { res.json({ data: await withTenant(tenantOf(req), getTeam) }); } catch (err) { next(err); }
+});
+staffRouter.post("/settings/team/:id/approve-password-change", requireRole("admin"), async (req, res, next) => {
+  try {
+    const ok = await withTenant(tenantOf(req), (tx) => approvePasswordChange(tx, req.params.id));
+    if (!ok) return res.status(404).json({ error: "not_found" });
+    res.status(204).end();
+  } catch (err) { next(err); }
+});
+staffRouter.delete("/settings/team/:id", requireRole("admin"), async (req, res, next) => {
+  try {
+    const result = await withTenant(tenantOf(req), (tx) => removeTeamMember(tx, req.params.id, req.tenant!.authUserId!));
+    if ("error" in result) {
+      const status = result.error === "not_found" ? 404 : 400;
+      return res.status(status).json({ error: result.error });
+    }
+    res.status(204).end();
+  } catch (err) { next(err); }
 });
 const InviteStaff = z.object({ email: z.string().email(), role: z.enum(["admin", "editor", "viewer"]) });
 staffRouter.post("/settings/team/invite", requireRole("admin"), async (req, res, next) => {
@@ -415,11 +556,21 @@ staffRouter.post("/settings/team/invite", requireRole("admin"), async (req, res,
   if (!body.success) return res.status(400).json({ error: "invalid_request" });
   try {
     const token = randomBytes(24).toString("hex");
-    await withTenant(tenantOf(req), (tx) => inviteStaff(tx, body.data.email, body.data.role, createHash("sha256").update(token).digest("hex"), req.tenant!.authUserId!));
-    // The raw token is returned once, here, exactly like a password-reset link -- it is never stored or logged,
-    // only its hash is (staff_invites.token_hash), so accepting an invite later can be verified without keeping
-    // a copy of the secret itself. Emailing this link is a separate delivery concern (n8n, Phase 7).
-    res.status(201).json({ invite_token: token });
+    const tenantName = await withTenant(tenantOf(req), async (tx) => {
+      await inviteStaff(tx, body.data.email, body.data.role, createHash("sha256").update(token).digest("hex"), req.tenant!.authUserId!);
+      return (await tx.query(`SELECT name FROM tenants`)).rows[0]?.name as string | undefined;
+    });
+    // The raw token only ever exists here and in the email below, exactly like a password-reset link -- the DB
+    // keeps only its hash (staff_invites.token_hash), so accepting an invite later verifies without storing the
+    // secret itself. req.header("origin") is the dashboard's own URL, the same one the frontend used to build
+    // this link itself before email delivery existed -- not configurable, read straight off the real request.
+    const origin = req.header("origin") ?? "";
+    const link = `${origin}/accept-invite?token=${token}`;
+    const emailed = origin ? await sendEmail(body.data.email, `You're invited to join ${tenantName ?? "Enrollium"}`,
+      `<p>You've been invited to join <strong>${tenantName ?? "the team"}</strong> on Enrollium as a <strong>${body.data.role}</strong>.</p>
+       <p><a href="${link}">Accept the invite</a> (expires in 7 days).</p>
+       <p>If the link doesn't work, copy this into your browser:<br>${link}</p>`) : false;
+    res.status(201).json({ invite_token: token, emailed });
   } catch (err) { next(err); }
 });
 staffRouter.get("/settings/messages", async (req, res, next) => {

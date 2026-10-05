@@ -123,14 +123,35 @@ describe("Inbox actions", () => {
     assert.equal(row[0]!.email, A.email);
   });
 
-  it("records a staff reply as a real message and moves the conversation to human", async () => {
+  it("records a staff reply as a real message and sends the conversation straight back to the bot ('open', not a standing 'human')", async () => {
     const res = await post(`/api/v1/conversations/${waConvId}/reply`, { text: "I've refunded the duplicate payment." });
     assert.equal(res.status, 201);
     const detail = (await (await get(`/api/v1/conversations/${waConvId}/messages`)).json()) as { status: string; messages: { role: string; content: string }[] };
-    assert.equal(detail.status, "human");
+    assert.equal(detail.status, "open"); // a reply is a one-off answer, not a takeover -- the AI resumes on the student's next message
     const last = detail.messages[detail.messages.length - 1]!;
     assert.equal(last.role, "staff");
     assert.equal(last.content, "I've refunded the duplicate payment.");
+  });
+
+  it("records who actually sent the reply, not just that someone did", async () => {
+    const detail = (await (await get(`/api/v1/conversations/${waConvId}/messages`)).json()) as { messages: { role: string; sent_by_email: string | null }[] };
+    const staffMsg = detail.messages.find((m) => m.role === "staff")!;
+    assert.equal(staffMsg.sent_by_email, A.email);
+  });
+
+  it("any admin/editor can reply to any needs_human conversation -- it's a shared queue, no claiming step", async () => {
+    await asOwner(A, "UPDATE tenant_users SET role = 'editor' WHERE tenant_id = current_tenant_id()");
+    await asOwner(A, "UPDATE conversations SET status = 'needs_human', assigned_to = NULL WHERE id = $1", [waConvId]); // unassigned, waiting
+    const otherAuthId = (await asOwner(A, "SELECT gen_random_uuid() AS id"))[0]!.id as string;
+    await asOwner(A, "INSERT INTO tenant_users (tenant_id, auth_user_id, email, role) VALUES (current_tenant_id(), $1, 'other-staff@conv.test', 'editor')", [otherAuthId]);
+    const otherToken = await staffToken(otherAuthId);
+    const res = await fetch(`${base}/api/v1/conversations/${waConvId}/reply`, {
+      method: "POST", headers: { authorization: `Bearer ${otherToken}`, "content-type": "application/json" }, body: JSON.stringify({ text: "I've got this one" }),
+    });
+    assert.equal(res.status, 201); // no assignment needed at all, from a staff member who never touched /assign
+    const row = await asOwner(A, "SELECT status FROM conversations WHERE id = $1", [waConvId]);
+    assert.equal(row[0]!.status, "open"); // sent straight back to the bot, same as any other reply
+    await asOwner(A, "UPDATE tenant_users SET role = 'admin' WHERE tenant_id = current_tenant_id()");
   });
 
   it("closes a conversation", async () => {

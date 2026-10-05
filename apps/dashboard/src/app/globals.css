@@ -20,6 +20,9 @@
   --series-blue: #2a78d6;
   --series-orange: #eb6834;
   --series-aqua: #1baf7a;
+  /* The Resolution chart splits "escalated" by who caused it, so it needs two more distinguishable series. */
+  --series-violet: #8257c9;
+  --series-grey: #a79e8f;
   /* Status chips: green/red are fixed and never shift with theme; draft/neutral use ink/accent so they do. */
   --chip-approved-bg: #dcf5e3;
   --chip-approved-fg: #1f7a3d;
@@ -41,6 +44,8 @@
   --series-blue: #3987e5;
   --series-orange: #d95926;
   --series-aqua: #199e70;
+  --series-violet: #9b74dd;
+  --series-grey: #8b8375;
   --chip-approved-bg: #1e3b28;
   --chip-approved-fg: #7fd99a;
   --chip-rejected-bg: #402420;

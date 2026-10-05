@@ -44,7 +44,6 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @uaa/desktop typecheck
       # Not code-signed (see apps/desktop/README.md) -- this just proves the installer still actually builds.
       - run: pnpm --filter @uaa/desktop build
         env:

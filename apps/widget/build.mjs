@@ -1,7 +1,7 @@
 // Builds the widget into dist/: loader.js (vanilla, runs in the host page) and widget.js (the Preact iframe app),
 // plus copies widget.html and styles.css alongside them. `--serve` also starts a static dev server.
 import { build, context } from "esbuild";
-import { copyFileSync, mkdirSync } from "node:fs";
+import { copyFileSync, mkdirSync, watch as fsWatch } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import http from "node:http";
@@ -17,8 +17,8 @@ const production = process.env.NODE_ENV === "production";
 
 const common = { bundle: true, minify: production, sourcemap: !production, target: "es2020", jsx: "automatic", jsxImportSource: "preact" };
 const entries = [
-  { entryPoints: [join(root, "src/loader.ts")], outfile: join(outdir, "loader.js"), format: "iife" },
-  { entryPoints: [join(root, "src/widget.tsx")], outfile: join(outdir, "widget.js"), format: "esm" },
+  { entryPoints: [join(root, "src/loader.js")], outfile: join(outdir, "loader.js"), format: "iife" },
+  { entryPoints: [join(root, "src/widget.jsx")], outfile: join(outdir, "widget.js"), format: "esm" },
 ];
 
 function copyStatics() {
@@ -30,6 +30,10 @@ if (watch) {
   const ctxs = await Promise.all(entries.map((e) => context({ ...common, ...e })));
   await Promise.all(ctxs.map((c) => c.watch()));
   copyStatics();
+  // esbuild's own watch only covers the two bundled entry points above -- widget.html/styles.css are plain
+  // copies, so without this they'd only ever reflect whatever they were at server startup.
+  fsWatch(join(root, "widget.html"), copyStatics);
+  fsWatch(join(root, "src/styles.css"), copyStatics);
   console.log("watching…");
 } else {
   await Promise.all(entries.map((e) => build({ ...common, ...e })));

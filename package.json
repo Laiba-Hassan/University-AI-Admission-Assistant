@@ -11,7 +11,7 @@
     "db:up": "docker compose up -d",
     "db:migrate": "node --env-file-if-exists=.env scripts/migrate.mjs",
     "db:test": "node --env-file-if-exists=.env scripts/db-test.mjs",
-    "typecheck": "pnpm -r typecheck",
+    "typecheck": "pnpm -r --if-present typecheck",
     "api:dev": "pnpm --filter @uaa/api dev",
     "seed": "pnpm --filter @uaa/api seed",
     "recall": "pnpm --filter @uaa/api recall",

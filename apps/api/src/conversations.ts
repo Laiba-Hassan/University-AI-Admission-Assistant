@@ -69,10 +69,11 @@ export async function getConversationDetail(tx: Tx, id: string) {
   if (!conv) return null;
 
   const messages = (await tx.query(
-    `SELECT m.id, m.role, m.content, m.detected_language, m."timestamp", m.metadata, m.delivery_status, mf.rating
-     FROM messages m LEFT JOIN message_feedback mf ON mf.message_id = m.id
+    `SELECT m.id, m.role, m.content, m.detected_language, m."timestamp", m.metadata, m.delivery_status, mf.rating,
+            su.email AS sent_by_email, su.full_name AS sent_by_name
+     FROM messages m LEFT JOIN message_feedback mf ON mf.message_id = m.id LEFT JOIN tenant_users su ON su.id = m.sent_by
      WHERE m.conversation_id = $1 ORDER BY m."timestamp" ASC`, [id])).rows as
-    { id: string; role: string; content: string; detected_language: string | null; timestamp: Date; metadata: Record<string, unknown>; delivery_status: string | null; rating: number | null }[];
+    { id: string; role: string; content: string; detected_language: string | null; timestamp: Date; metadata: Record<string, unknown>; delivery_status: string | null; rating: number | null; sent_by_email: string | null; sent_by_name: string | null }[];
   // The conversation's language, for the detail header ("WhatsApp · English · started..."): the most recent
   // message that actually has one, since staff replies don't carry a detected_language.
   const language = [...messages].reverse().find((m) => m.detected_language)?.detected_language ?? null;
@@ -86,7 +87,7 @@ export async function getConversationDetail(tx: Tx, id: string) {
 }
 
 export async function escalateConversation(tx: Tx, id: string, reason: string) {
-  const updated = await tx.query(`UPDATE conversations SET status = 'needs_human', handoff_reason = $2, last_message_at = now() WHERE id = $1 AND status <> 'needs_human' RETURNING id`, [id, reason]);
+  const updated = await tx.query(`UPDATE conversations SET status = 'needs_human', handoff_source = 'staff', handoff_reason = $2, last_message_at = now() WHERE id = $1 AND status <> 'needs_human' RETURNING id`, [id, reason]);
   if (updated.rowCount) {
     await tx.query(`INSERT INTO event_outbox (tenant_id, event_type, payload) VALUES (current_tenant_id(), 'handoff_requested', $1)`,
       [JSON.stringify({ conversation_id: id, reason })]);
@@ -105,17 +106,23 @@ export async function assignConversationToSelf(tx: Tx, id: string, authUserId: s
   return { assigned: !!updated.rowCount };
 }
 
-/** Staff sends a reply directly (Inbox). Recorded as a real message and moves the conversation into 'human'
- * (staff actively handling); actually delivering it back over WhatsApp/the widget in real time is a separate
- * channel-delivery concern (Meta send API / widget push) not built yet -- this only makes the reply exist. */
-export async function sendStaffReply(tx: Tx, id: string, text: string) {
+export type SendStaffReplyResult = { ok: true; message: { id: string; timestamp: Date } } | { ok: false; error: "not_found" };
+
+/** Staff sends a reply directly from the Inbox -- a one-off answer, not a standing takeover. Any admin/editor
+ * can reply to any needs_human conversation (no claiming step, it's a shared queue); recorded as a real message,
+ * tagged with who sent it (for the transcript, not for gatekeeping), and the conversation goes straight back to
+ * 'open' in the SAME write -- the AI resumes answering this student's very next message automatically. If it
+ * needs a human again later, the AI's own request_human call escalates it back into the Inbox on its own.
+ * Actually delivering the reply back over WhatsApp/the widget in real time is a separate channel-delivery
+ * concern (Meta send API / widget push) not built yet -- this only makes the reply exist. */
+export async function sendStaffReply(tx: Tx, id: string, text: string, staffTenantUserId: string): Promise<SendStaffReplyResult> {
   const conv = await tx.query(`SELECT id FROM conversations WHERE id = $1`, [id]);
-  if (!conv.rowCount) return null;
+  if (!conv.rowCount) return { ok: false, error: "not_found" };
   const msg = (await tx.query(
-    `INSERT INTO messages (tenant_id, conversation_id, role, content) VALUES (current_tenant_id(), $1, 'staff', $2) RETURNING id, "timestamp"`,
-    [id, text])).rows[0] as { id: string; timestamp: Date };
-  await tx.query(`UPDATE conversations SET status = 'human', last_message_at = now() WHERE id = $1`, [id]);
-  return msg;
+    `INSERT INTO messages (tenant_id, conversation_id, role, content, sent_by) VALUES (current_tenant_id(), $1, 'staff', $2, $3) RETURNING id, "timestamp"`,
+    [id, text, staffTenantUserId])).rows[0] as { id: string; timestamp: Date };
+  await tx.query(`UPDATE conversations SET status = 'open', last_message_at = now() WHERE id = $1`, [id]);
+  return { ok: true, message: msg };
 }
 
 export async function setConversationStatus(tx: Tx, id: string, status: "open" | "closed") {

@@ -33,7 +33,11 @@ export async function getChannels(tx: Tx) {
   const rows = (await tx.query(
     `SELECT channel, phone_number_id, display_number, template_status, status, connected_at FROM channel_connections`)).rows;
   const widget = (await tx.query(`SELECT public_key, allowed_origins, status FROM widget_keys ORDER BY id LIMIT 1`)).rows[0];
-  return { web_widget: widget ?? null, whatsapp: rows.find((r) => r.channel === "whatsapp") ?? null };
+  // Plan gate: Web-only vs Web + WhatsApp (two plans, one boolean -- no separate plan table needed for exactly
+  // two tiers). The Channels page uses this to show an upgrade prompt instead of a connect form that would only
+  // fail once submitted; the actual enforcement is the POST /settings/channels/whatsapp route itself, not this.
+  const whatsappEnabled = (await tx.query(`SELECT whatsapp_enabled FROM tenant_limits`)).rows[0]?.whatsapp_enabled as boolean ?? false;
+  return { web_widget: widget ?? null, whatsapp: rows.find((r) => r.channel === "whatsapp") ?? null, whatsapp_enabled: whatsappEnabled };
 }
 
 /** A tenant only ever needs one active web widget key (the loader script embeds exactly one). Creating one for
@@ -61,16 +65,64 @@ export async function rotateWidgetKey(tx: Tx) {
 }
 
 export async function getBranding(tx: Tx) {
-  return (await tx.query(`SELECT name, branding, working_hours FROM tenants`)).rows[0];
+  return (await tx.query(`SELECT name, branding, working_hours, welcome_message FROM tenants`)).rows[0];
 }
 
-export async function updateBranding(tx: Tx, patch: { branding?: Record<string, unknown>; working_hours?: Record<string, unknown> }) {
+export async function updateBranding(tx: Tx, patch: { branding?: Record<string, unknown>; working_hours?: Record<string, unknown>; welcome_message?: string }) {
   if (patch.branding) await tx.query(`UPDATE tenants SET branding = branding || $1::jsonb`, [JSON.stringify(patch.branding)]);
   if (patch.working_hours) await tx.query(`UPDATE tenants SET working_hours = $1::jsonb`, [JSON.stringify(patch.working_hours)]);
+  if (patch.welcome_message !== undefined) await tx.query(`UPDATE tenants SET welcome_message = $1`, [patch.welcome_message]);
 }
 
 export async function getTeam(tx: Tx) {
-  return (await tx.query(`SELECT id, email, role, notify_leads, notify_handoffs FROM tenant_users ORDER BY email`)).rows;
+  // auth_user_id IS NULL = removed (see removeTeamMember): the row stays so historical assigned_to/created_by/
+  // invited_by references don't break, it just stops showing up as an active team member or being able to sign in.
+  return (await tx.query(
+    `SELECT id, email, full_name, role, notify_leads, notify_handoffs, password_change_requested_at, password_change_approved_at
+       FROM tenant_users WHERE auth_user_id IS NOT NULL ORDER BY email`)).rows;
+}
+
+/** "Removing" a team member clears auth_user_id rather than deleting the row: tenant_users is referenced by
+ * assigned_to/created_by/reviewed_by/invited_by on real historical records (conversations, leads, import batches,
+ * invites) with no ON DELETE behavior, so a hard delete would just fail once they'd ever touched anything. Clearing
+ * auth_user_id is enough on its own -- resolve_tenants_by_auth_user() can never match it again, so they lose
+ * access immediately, while every record they touched keeps resolving correctly. */
+export async function removeTeamMember(tx: Tx, id: string, requesterAuthUserId: string) {
+  const target = (await tx.query(`SELECT auth_user_id, role FROM tenant_users WHERE id = $1`, [id])).rows[0] as
+    { auth_user_id: string | null; role: string } | undefined;
+  if (!target || !target.auth_user_id) return { error: "not_found" as const };
+  if (target.auth_user_id === requesterAuthUserId) return { error: "cannot_remove_self" as const };
+  if (target.role === "admin") {
+    const admins = (await tx.query(`SELECT count(*)::int AS n FROM tenant_users WHERE role = 'admin' AND auth_user_id IS NOT NULL`)).rows[0].n as number;
+    if (admins <= 1) return { error: "last_admin" as const };
+  }
+  await tx.query(`UPDATE tenant_users SET auth_user_id = NULL WHERE id = $1`, [id]);
+  return { ok: true as const };
+}
+
+/** Non-admins can't just change their own password -- they request it, an admin approves, and the approval is
+ * consumed the moment they actually use it (see consumePasswordChangeApproval), so each is single-use. */
+export async function requestPasswordChange(tx: Tx, authUserId: string) {
+  await tx.query(
+    `UPDATE tenant_users SET password_change_requested_at = now(), password_change_approved_at = NULL WHERE auth_user_id = $1`,
+    [authUserId]);
+}
+/** `requireAdminTarget` is the actual authority boundary, not just a UI convenience: a tenant Admin approving
+ * from Settings > Team (requireAdminTarget=false) can only ever touch an Editor/Viewer's request -- an Admin's
+ * own request can only be approved by the platform team (requireAdminTarget=true, see routes/platform.ts), never
+ * by a fellow tenant Admin. Enforced here in the WHERE clause so a direct API call can't bypass what the UI hides. */
+export async function approvePasswordChange(tx: Tx, tenantUserId: string, requireAdminTarget = false) {
+  const updated = await tx.query(
+    `UPDATE tenant_users SET password_change_approved_at = now()
+       WHERE id = $1 AND password_change_requested_at IS NOT NULL AND role ${requireAdminTarget ? "=" : "<>"} 'admin'
+     RETURNING id`,
+    [tenantUserId]);
+  return !!updated.rowCount;
+}
+export async function consumePasswordChangeApproval(tx: Tx, authUserId: string) {
+  await tx.query(
+    `UPDATE tenant_users SET password_change_requested_at = NULL, password_change_approved_at = NULL WHERE auth_user_id = $1`,
+    [authUserId]);
 }
 
 export async function inviteStaff(tx: Tx, email: string, role: "admin" | "editor" | "viewer", tokenHash: string, invitedByAuthUserId: string) {

@@ -83,6 +83,6 @@ export async function deleteTenants(ids: string[]) {
   });
 }
 
-export const staffToken = (sub: string, opts: { secret?: string; expiresIn?: string } = {}) =>
-  new SignJWT({}).setProtectedHeader({ alg: "HS256" }).setSubject(sub).setAudience("authenticated").setIssuedAt()
+export const staffToken = (sub: string, opts: { secret?: string; expiresIn?: string; claims?: Record<string, unknown> } = {}) =>
+  new SignJWT(opts.claims ?? {}).setProtectedHeader({ alg: "HS256" }).setSubject(sub).setAudience("authenticated").setIssuedAt()
     .setExpirationTime(opts.expiresIn ?? "5m").sign(new TextEncoder().encode(opts.secret ?? JWT_SECRET));

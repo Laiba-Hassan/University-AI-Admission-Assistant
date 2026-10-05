@@ -141,7 +141,7 @@ export async function runTool(name: string, args: Record<string, unknown>, ctx: 
       case "request_human": {
         const reason = maskPii(str(args.reason, 200) ?? "requested").text;
         await withTenant(ctx.tenantId, async (tx) => {
-          await tx.query("UPDATE conversations SET status = 'needs_human' WHERE id = $1 AND status = 'open'", [ctx.conversationId]);
+          await tx.query("UPDATE conversations SET status = 'needs_human', handoff_source = 'ai' WHERE id = $1 AND status = 'open'", [ctx.conversationId]);
           await tx.query("INSERT INTO event_outbox (tenant_id, event_type, payload) VALUES (current_tenant_id(), 'handoff_requested', $1)", [JSON.stringify({ conversation_id: ctx.conversationId, reason })]);
           await recordUsage(tx, "handoff_requested", ctx.channel);
         });

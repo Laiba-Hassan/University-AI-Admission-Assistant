@@ -27,6 +27,13 @@ export async function approveKbRow(tx: Tx, entity: string, id: string, staffTena
   return { approved: true };
 }
 
+/** Whether a FAQ is one of the widget's starter-chip suggestions (see /api/widget/config) -- deliberately FAQ-only,
+ * not a generic KB_TABLES operation, since "suggested question" only makes sense for FAQs. */
+export async function setFaqFeatured(tx: Tx, id: string, featured: boolean) {
+  const updated = await tx.query(`UPDATE faqs SET featured = $1 WHERE id = $2 RETURNING id`, [featured, id]);
+  return !!updated.rowCount;
+}
+
 export async function listChangeHistory(tx: Tx, limit: number) {
   const rows = (await tx.query(
     `SELECT a.id, a."timestamp", a.action, a.resource, a.metadata, tu.email AS staff_email

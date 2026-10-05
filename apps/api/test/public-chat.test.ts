@@ -58,6 +58,16 @@ async function setTenantLimit(tenantId: string, column: "monthly_conversation_li
     await c.query("COMMIT");
   });
 }
+// tenants carries FORCE ROW LEVEL SECURITY same as every other tenant-owned table -- even app_migrator (the
+// withOwner role) needs app.tenant_id set first, or an UPDATE/SELECT against it silently matches zero rows.
+async function setDemoExpiry(tenantId: string, expr: string | null) {
+  await withOwner(async (c) => {
+    await c.query("BEGIN");
+    await c.query("SELECT set_config('app.tenant_id', $1, true)", [tenantId]);
+    await c.query(`UPDATE tenants SET demo_expires_at = ${expr ?? "NULL"} WHERE id = $1`, [tenantId]);
+    await c.query("COMMIT");
+  });
+}
 
 before(async () => {
   db = await import("../src/db.js");
@@ -74,6 +84,21 @@ describe("widget config", () => {
     const body = (await (await get("/api/widget/config", randomIp())).json()) as { suggested_questions: string[]; turnstile_site_key: string | null };
     assert.ok(Array.isArray(body.suggested_questions));
     assert.ok("turnstile_site_key" in body);
+  });
+});
+
+describe("demo plan expiry blocks the public widget (migration 0023)", () => {
+  it("resolves normally with no demo_expires_at, and with one still in the future", async () => {
+    assert.equal((await get("/api/widget/config", randomIp())).status, 200);
+    await setDemoExpiry(A.id, "now() + interval '1 day'");
+    assert.equal((await get("/api/widget/config", randomIp())).status, 200);
+  });
+
+  it("refuses to resolve the tenant at all once demo_expires_at is in the past -- this is 'the widget stops working'", async () => {
+    await setDemoExpiry(A.id, "now() - interval '1 minute'");
+    const res = await get("/api/widget/config", randomIp());
+    assert.equal(res.status, 403); // same uniform "forbidden" an unknown widget key gets -- reveals nothing
+    await setDemoExpiry(A.id, null); // restore for later tests in this file
   });
 });
 

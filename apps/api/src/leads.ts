@@ -1,6 +1,6 @@
 import type { Tx } from "./db.js";
 
-export interface LeadFilters { status?: "new" | "contacted" | "enrolled"; search?: string; limit: number }
+export interface LeadFilters { status?: "new" | "contacted" | "enrolled"; search?: string; from?: Date; to?: Date; limit: number }
 
 export async function listLeads(tx: Tx, f: LeadFilters) {
   const where: string[] = [];
@@ -8,6 +8,8 @@ export async function listLeads(tx: Tx, f: LeadFilters) {
   const p = (v: unknown) => { params.push(v); return `$${params.length}`; };
   if (f.status) where.push(`l.status = ${p(f.status)}`);
   if (f.search) where.push(`(l.name ILIKE ${p(`%${f.search}%`)} OR l.program_interest ILIKE ${p(`%${f.search}%`)})`);
+  if (f.from) where.push(`l.created_at >= ${p(f.from)}`);
+  if (f.to) where.push(`l.created_at <= ${p(f.to)}`);
 
   const sql = `
     SELECT l.id, l.tenant_id, l.name, l.contact, l.program_interest, l.source, l.status, l.consent, l.notes, l.created_at,

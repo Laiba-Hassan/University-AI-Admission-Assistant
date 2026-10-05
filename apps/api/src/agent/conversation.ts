@@ -32,6 +32,9 @@ export interface ChatInput {
 export interface FactCard { type: "fee" | "intake"; label: string; value: string; as_of: string | null; stale?: boolean }
 export interface ChatOutput {
   reply: string; status: ChatStatus; language: Detected; conversationId: string | null; messageId: string | null; cards: FactCard[];
+  // The real DB-assigned timestamp of the stored reply (or null when none was stored) -- the widget's poll loop
+  // uses this, not the client's own clock, to know what it's already shown and avoid re-fetching/duplicating it.
+  timestamp: string | null;
   debug?: { toolTrace: AgentRun["toolTrace"]; verdict: Verdict; flags: AgentRun["flags"]; leak: boolean; model: string; inputTokens: number; outputTokens: number; unanswered: string[] };
 }
 
@@ -43,7 +46,7 @@ export const leaks = (reply: string) => reply.includes(CANARY) || LEAK_PATTERNS.
 
 const scriptOf = (l: Detected): Lang => (l === "other" ? "english" : l);
 const defaultProvider = new GeminiProvider();
-const noReply = (status: ChatStatus, conversationId: string | null = null): ChatOutput => ({ reply: "", status, language: "english", conversationId, messageId: null, cards: [] });
+const noReply = (status: ChatStatus, conversationId: string | null = null): ChatOutput => ({ reply: "", status, language: "english", conversationId, messageId: null, cards: [], timestamp: null });
 
 /** Upserts the contact and, if the contact already has an open conversation, returns it. Never creates one: the
  * monthly conversation limit must be checked BEFORE a new conversation row exists, not after. */
@@ -75,7 +78,7 @@ export async function requestHandoff(tenantId: string, channel: "web" | "whatsap
   return withTenant(tenantId, async (tx) => {
     const { conversationId, conversationStatus } = await resolveConversation(tx, channel, externalId);
     if (conversationStatus === "needs_human" || conversationStatus === "human") return { conversationId, already: true };
-    await tx.query("UPDATE conversations SET status = 'needs_human', last_message_at = now() WHERE id = $1", [conversationId]);
+    await tx.query("UPDATE conversations SET status = 'needs_human', handoff_source = 'student', last_message_at = now() WHERE id = $1", [conversationId]);
     await tx.query("INSERT INTO event_outbox (tenant_id, event_type, payload) VALUES (current_tenant_id(), 'handoff_requested', $1)", [JSON.stringify({ conversation_id: conversationId, reason: maskPii(reason).text })]);
     await recordUsage(tx, "handoff_requested", channel);
     return { conversationId, already: false };
@@ -158,11 +161,19 @@ export async function handleMessage(input: ChatInput): Promise<ChatOutput> {
       case "monthly_message":
       case "token_cap": {
         // A real message was stored; reply with the tenant's own fallback text in its language, but skip the model.
+        // The cap exists for cost control, not to make a normal-length conversation need a human -- so this stays
+        // silent to the student exactly like before, but now logs to Unanswered so staff at least have visibility
+        // that it happened, instead of the question vanishing with no trace anywhere.
         const fixed = (await withTenant(input.tenantId, async (tx) => (await tx.query("SELECT key, language, text FROM localized_messages")).rows)) as { key: string; language: string; text: string }[];
         const language = setup.language ?? "english";
         const reply = fixedTextFor(fixed, language, "fallback");
-        await withTenant(input.tenantId, (tx) => recordUsage(tx, "limit_blocked", input.channel, { reason: setup.blocked }));
-        return { reply, status: "limit_reached", language, conversationId: setup.conversationId, messageId: null, cards: [] };
+        await withTenant(input.tenantId, async (tx) => {
+          await recordUsage(tx, "limit_blocked", input.channel, { reason: setup.blocked });
+          const hit = await tx.query(
+            "UPDATE unanswered_questions SET count = count + 1, last_seen = now() WHERE lower(question_text) = lower($1) AND status = 'open' RETURNING id", [masked]);
+          if (!hit.rowCount) await tx.query("INSERT INTO unanswered_questions (tenant_id, question_text) VALUES (current_tenant_id(), $1)", [masked]);
+        });
+        return { reply, status: "limit_reached", language, conversationId: setup.conversationId, messageId: null, cards: [], timestamp: null };
       }
     }
   }
@@ -208,17 +219,18 @@ export async function handleMessage(input: ChatInput): Promise<ChatOutput> {
   }
 
   // 5. Persist the reply with its metadata, meter usage, and log unanswered questions.
-  const messageId = await withTenant(input.tenantId, async (tx) => {
-    const id = (await tx.query(
+  const { messageId, messageTimestamp } = await withTenant(input.tenantId, async (tx) => {
+    const inserted = (await tx.query(
       `INSERT INTO messages (tenant_id, conversation_id, role, content, detected_language, metadata)
-       VALUES (current_tenant_id(), $1, 'assistant', $2, $3, $4) RETURNING id`,
+       VALUES (current_tenant_id(), $1, 'assistant', $2, $3, $4) RETURNING id, "timestamp"`,
       [setup.conversationId, reply, language, JSON.stringify({
         tool_calls: run.toolTrace, verifier: { ok: verdict.ok && !leak, unsupported: verdict.unsupported.map((u) => u.raw), leak_blocked: leak },
         model: run.model, input_tokens: run.inputTokens, output_tokens: run.outputTokens, unanswered,
         // The fact cards this turn actually cited (see cards[] below), persisted so the Conversations detail
         // view can re-render the same "Show sources" evidence later, not just that a tool ran.
         cards,
-      })])).rows[0].id as string;
+      })])).rows[0] as { id: string; timestamp: Date };
+    const id = inserted.id;
     await tx.query("UPDATE conversations SET last_message_at = now() WHERE id = $1", [setup.conversationId]);
     await recordUsage(tx, "ai_reply", input.channel, { model: run.model, input_tokens: run.inputTokens, output_tokens: run.outputTokens });
     if (unanswered.length) {
@@ -231,11 +243,11 @@ export async function handleMessage(input: ChatInput): Promise<ChatOutput> {
       }
     }
     if (rejected) await tx.query("INSERT INTO event_outbox (tenant_id, event_type, payload) VALUES (current_tenant_id(), 'unanswered_logged', $1)", [JSON.stringify({ conversation_id: setup.conversationId, reasons: unanswered })]);
-    return id;
+    return { messageId: id, messageTimestamp: inserted.timestamp.toISOString() };
   });
 
   return {
-    reply, status, language, conversationId: setup.conversationId, messageId, cards,
+    reply, status, language, conversationId: setup.conversationId, messageId, cards, timestamp: messageTimestamp,
     debug: { toolTrace: run.toolTrace, verdict, flags: run.flags, leak, model: run.model, inputTokens: run.inputTokens, outputTokens: run.outputTokens, unanswered },
   };
 }

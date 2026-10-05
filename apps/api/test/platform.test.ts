@@ -151,6 +151,70 @@ describe("editable usage limits (audited)", () => {
   });
 });
 
+describe("plan toggle: Web only vs Web + WhatsApp (audited)", () => {
+  it("starts Web-only (tenant_limits default) and can be upgraded, visible in platform_list_tenants() and the audit log", async () => {
+    const known = created[0];
+    const before = await db.withTenant(known, (tx) => tx.query("SELECT whatsapp_enabled FROM tenant_limits"));
+    assert.equal(before.rows[0].whatsapp_enabled, false);
+
+    const res = await patchJson(`/tenants/${known}/plan`, { whatsapp_enabled: true });
+    assert.equal(res.status, 204);
+    const row = await db.withTenant(known, (tx) => tx.query("SELECT whatsapp_enabled FROM tenant_limits"));
+    assert.equal(row.rows[0].whatsapp_enabled, true);
+    // The same flag the Super Admin tenant list and tenant detail page both read off platform_list_tenants().
+    const listed = (await (await asAdmin(`/tenants/${known}`)).json()) as { whatsapp_enabled: boolean };
+    assert.equal(listed.whatsapp_enabled, true);
+
+    const log = (await (await asAdmin("/audit-log?limit=5")).json()) as { entries: { action: string; details: string }[] };
+    assert.ok(log.entries.some((e) => e.action === "changed_plan" && e.details.includes("Web + WhatsApp")));
+
+    await patchJson(`/tenants/${known}/plan`, { whatsapp_enabled: false }); // leave as found for other tests
+  });
+
+  it("404s for an unknown tenant", async () => {
+    assert.equal((await patchJson(`/tenants/${randomUUID()}/plan`, { whatsapp_enabled: true })).status, 404);
+  });
+});
+
+describe("approving an Admin's own password-change request", () => {
+  it("approves once the admin has requested, and shows up in detail.team + the audit log", async () => {
+    const known = created[0];
+    const tenantAdminAuthId = randomUUID();
+    await db.withTenant(known, (tx) => tx.query(
+      "INSERT INTO tenant_users (tenant_id, auth_user_id, email, role) VALUES (current_tenant_id(), $1, 'platform-test-tenant-admin@uaa.internal', 'admin')", [tenantAdminAuthId]));
+    const tenantAdminId = (await db.withTenant(known, (tx) => tx.query("SELECT id FROM tenant_users WHERE auth_user_id = $1", [tenantAdminAuthId]))).rows[0]!.id as string;
+    const tenantAdminToken = await staffToken(tenantAdminAuthId);
+    const reqRes = await fetch(`${base}/api/v1/me/password-change-request`, { method: "POST", headers: { authorization: `Bearer ${tenantAdminToken}`, "content-type": "application/json" }, body: "{}" });
+    assert.equal(reqRes.status, 204);
+
+    const res = await postJson(`/tenants/${known}/team/${tenantAdminId}/approve-password-change`, {});
+    assert.equal(res.status, 204);
+    const row = await db.withTenant(known, (tx) => tx.query("SELECT password_change_approved_at FROM tenant_users WHERE id = $1", [tenantAdminId]));
+    assert.ok(row.rows[0]!.password_change_approved_at);
+
+    const detail = (await (await asAdmin(`/tenants/${known}`)).json()) as { team: { id: string; password_change_approved_at: string | null }[] };
+    assert.ok(detail.team.find((m) => m.id === tenantAdminId)?.password_change_approved_at);
+    const log = (await (await asAdmin("/audit-log?limit=5")).json()) as { entries: { action: string }[] };
+    assert.ok(log.entries.some((e) => e.action === "approved_admin_password_change"));
+  });
+
+  it("404s for a non-admin target -- this route approves admin requests only, an Editor/Viewer's goes through the tenant's own Settings > Team", async () => {
+    const known = created[0];
+    const viewerAuthId = randomUUID();
+    await db.withTenant(known, (tx) => tx.query(
+      "INSERT INTO tenant_users (tenant_id, auth_user_id, email, role) VALUES (current_tenant_id(), $1, 'platform-test-tenant-viewer@uaa.internal', 'viewer')", [viewerAuthId]));
+    const viewerId = (await db.withTenant(known, (tx) => tx.query("SELECT id FROM tenant_users WHERE auth_user_id = $1", [viewerAuthId]))).rows[0]!.id as string;
+    const viewerToken = await staffToken(viewerAuthId);
+    await fetch(`${base}/api/v1/me/password-change-request`, { method: "POST", headers: { authorization: `Bearer ${viewerToken}`, "content-type": "application/json" }, body: "{}" });
+
+    assert.equal((await postJson(`/tenants/${known}/team/${viewerId}/approve-password-change`, {})).status, 404);
+  });
+
+  it("404s for an unknown tenant", async () => {
+    assert.equal((await postJson(`/tenants/${randomUUID()}/team/${randomUUID()}/approve-password-change`, {})).status, 404);
+  });
+});
+
 describe("manual billing tracking", () => {
   it("defaults to trial, is patchable field-by-field, and shows up in the billing overview", async () => {
     const known = created[0];

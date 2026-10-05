@@ -20,3 +20,5 @@ apps/dashboard/next-env.d.ts
 apps/desktop/dist/
 apps/desktop/release/
 *.tsbuildinfo
+.claude/
+.agents/

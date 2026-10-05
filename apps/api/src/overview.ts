@@ -1,7 +1,7 @@
 import type { Tx } from "./db.js";
 
-export type Period = "7d" | "30d" | "90d";
-const DAYS: Record<Period, number> = { "7d": 7, "30d": 30, "90d": 90 };
+export type Period = "7d" | "30d" | "90d" | "custom";
+const DAYS: Record<"7d" | "30d" | "90d", number> = { "7d": 7, "30d": 30, "90d": 90 };
 
 interface WorkingHours { tz?: string; mon_fri?: string | null; sat?: string | null; sun?: string | null }
 
@@ -27,14 +27,20 @@ function isWithinWorkingHours(hours: WorkingHours | undefined, at: Date): boolea
 const pct = (n: number, d: number) => (d === 0 ? 0 : Math.round((n / d) * 1000) / 10);
 const weekBucket = (d: Date) => { const t = new Date(d); t.setUTCHours(0, 0, 0, 0); t.setUTCDate(t.getUTCDate() - t.getUTCDay()); return t.toISOString().slice(0, 10); };
 
-interface Bucket { conversations: number; leads: number; resolved: number; escalated: number; afterHours: number; verifiedOk: number; verifierRan: number; unanswered: number; assistantMsgs: number }
-const emptyBucket = (): Bucket => ({ conversations: 0, leads: 0, resolved: 0, escalated: 0, afterHours: 0, verifiedOk: 0, verifierRan: 0, unanswered: 0, assistantMsgs: 0 });
+interface Bucket { conversations: number; leads: number; resolved: number; escalated: number; afterHours: number; verifiedOk: number; verifierRan: number; unanswered: number; assistantMsgs: number; escalatedAi: number; escalatedStudent: number; escalatedStaff: number; escalatedUnknown: number }
+const emptyBucket = (): Bucket => ({ conversations: 0, leads: 0, resolved: 0, escalated: 0, afterHours: 0, verifiedOk: 0, verifierRan: 0, unanswered: 0, assistantMsgs: 0, escalatedAi: 0, escalatedStudent: 0, escalatedStaff: 0, escalatedUnknown: 0 });
+
+/** Which of the three writers moved a conversation into needs_human (migration 0020). A conversation escalated
+ * before that column existed has no source recorded and is deliberately reported as "unknown" rather than being
+ * attributed to a guess -- it still counts toward the total escalated either way. */
+const SOURCE_BUCKET = { ai: "escalatedAi", student: "escalatedStudent", staff: "escalatedStaff" } as const;
+const sourceKey = (s: string | null) => (s && s in SOURCE_BUCKET ? SOURCE_BUCKET[s as keyof typeof SOURCE_BUCKET] : "escalatedUnknown");
 
 /** Raw counts for one window (current or the prior, same-length window immediately before it), everything the
  * six KPI cards and their "vs {period}" comparison need. Also buckets by week so the two charts and each KPI's
  * sparkline have real history, not a single number. */
 async function windowStats(tx: Tx, from: Date, to: Date, tenant: { working_hours: WorkingHours }) {
-  const conversations = await tx.query(`SELECT id, status, started_at FROM conversations WHERE started_at >= $1 AND started_at < $2`, [from, to]);
+  const conversations = await tx.query(`SELECT id, status, started_at, handoff_source FROM conversations WHERE started_at >= $1 AND started_at < $2`, [from, to]);
   const leads = await tx.query(`SELECT id, created_at FROM leads WHERE created_at >= $1 AND created_at < $2`, [from, to]);
   const assistantMsgs = await tx.query(`SELECT "timestamp", metadata FROM messages WHERE role = 'assistant' AND "timestamp" >= $1 AND "timestamp" < $2`, [from, to]);
 
@@ -50,15 +56,20 @@ async function windowStats(tx: Tx, from: Date, to: Date, tenant: { working_hours
     if (row.metadata.unanswered?.length) { unanswered++; b.unanswered++; }
   }
   let escalated = 0;
-  for (const c of conversations.rows as { status: string; started_at: Date }[]) {
+  const bySource = { escalatedAi: 0, escalatedStudent: 0, escalatedStaff: 0, escalatedUnknown: 0 };
+  for (const c of conversations.rows as { status: string; started_at: Date; handoff_source: string | null }[]) {
     const b = get(weekBucket(c.started_at));
     b.conversations++;
-    if (c.status === "needs_human" || c.status === "human") { escalated++; b.escalated++; } else if (c.status === "closed") b.resolved++;
+    if (c.status === "needs_human" || c.status === "human") {
+      escalated++; b.escalated++;
+      const key = sourceKey(c.handoff_source);
+      b[key]++; bySource[key]++;
+    } else if (c.status === "closed") b.resolved++;
   }
   for (const l of leads.rows as { created_at: Date }[]) get(weekBucket(l.created_at)).leads++;
 
   return {
-    conversations: conversations.rows.length, leads: leads.rows.length, escalated, afterHours, verifiedOk, verifierRan, unanswered,
+    conversations: conversations.rows.length, leads: leads.rows.length, escalated, bySource, afterHours, verifiedOk, verifierRan, unanswered,
     assistantMsgs: assistantMsgs.rows.length, buckets,
   };
 }
@@ -78,22 +89,28 @@ function delta(current: number, prior: number, opts: { unit: "%" | "pts"; higher
   return { direction, magnitude: rounded, unit: opts.unit, good };
 }
 
-export async function getOverview(tx: Tx, period: Period) {
-  const days = DAYS[period];
+/** `range` is either a named preset or an explicit {from, to} (the dashboard's calendar picker) -- either way,
+ * "prior" is always the same-length window immediately before it, so the "vs previous period" comparison works
+ * identically for both. */
+export async function getOverview(tx: Tx, range: Period, custom?: { from: Date; to: Date }) {
   const now = new Date();
-  const since = new Date(now.getTime() - days * 86_400_000);
-  const priorSince = new Date(since.getTime() - days * 86_400_000);
+  const since = range === "custom" && custom ? custom.from : new Date(now.getTime() - DAYS[range as "7d" | "30d" | "90d"] * 86_400_000);
+  const to = range === "custom" && custom ? custom.to : now;
+  const priorSince = new Date(since.getTime() - (to.getTime() - since.getTime()));
   const tenant = (await tx.query("SELECT working_hours, fee_stale_after_days FROM tenants")).rows[0] as
     { working_hours: WorkingHours; fee_stale_after_days: number };
 
   // Sequential, deliberately: tx is one PoolClient/connection, and firing queries concurrently on it (Promise.all)
   // is unsafe -- node-pg only queues them, but interleaves parameter binding in a way that silently corrupts
   // which $1 goes with which statement (this shipped once as a real bug: a bogus "column ... does not exist").
-  const current = await windowStats(tx, since, now, tenant);
+  const current = await windowStats(tx, since, to, tenant);
   const prior = await windowStats(tx, priorSince, since, tenant);
 
   const trend = [...current.buckets.entries()].sort(([a], [b]) => a.localeCompare(b))
-    .map(([week, v]) => ({ week, conversations: v.conversations, leads: v.leads, resolved: v.resolved, escalated: v.escalated }));
+    .map(([week, v]) => ({
+      week, conversations: v.conversations, leads: v.leads, resolved: v.resolved, escalated: v.escalated,
+      escalated_ai: v.escalatedAi, escalated_student: v.escalatedStudent, escalated_staff: v.escalatedStaff, escalated_unknown: v.escalatedUnknown,
+    }));
   // Per-KPI sparkline: the same weekly buckets, reduced to just the one number each card cares about (a rate
   // where the KPI itself is a rate, a running count otherwise) -- real history, not a decorative squiggle.
   const weeklySeries = [...current.buckets.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, v]) => v);
@@ -137,7 +154,9 @@ export async function getOverview(tx: Tx, period: Period) {
   const topUnanswered = await tx.query(`SELECT question_text, count, last_seen FROM unanswered_questions WHERE status = 'open' ORDER BY count DESC LIMIT 5`);
 
   return {
-    period,
+    period: range,
+    from: since.toISOString(),
+    to: to.toISOString(),
     kpis: {
       conversations: current.conversations,
       leads_captured: current.leads,
@@ -149,6 +168,12 @@ export async function getOverview(tx: Tx, period: Period) {
     kpi_trends,
     kpi_sparklines: sparkline,
     fallback_fired: fallbackFired,
+    // Who caused each handoff, over the whole window: "the AI could not answer" and "the student asked for a
+    // person" are different problems, and the single Escalated total used to hide which one a tenant has.
+    escalation_sources: {
+      ai: current.bySource.escalatedAi, student: current.bySource.escalatedStudent,
+      staff: current.bySource.escalatedStaff, unrecorded: current.bySource.escalatedUnknown,
+    },
     trend,
     needs_attention: {
       conversations_waiting: { count: needsReply.rows[0].n, longest_wait_minutes: needsReply.rows[0].longest_wait_minutes ?? 0 },

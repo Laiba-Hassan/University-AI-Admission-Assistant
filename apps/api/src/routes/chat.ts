@@ -47,7 +47,7 @@ export function chatRouter(llmProvider?: LlmProvider, sttProvider?: SttProvider)
       if (!(await challengeOk(tenantId, body.data.session_id, req))) return res.status(403).json({ error: "challenge_required" });
       const out = await handleMessage({ tenantId, channel: "web", externalId: body.data.session_id, text: body.data.message, forcedLanguage: body.data.language, provider: llmProvider });
       // Debug internals (tool calls, verifier details) are never sent to the client.
-      res.json({ reply: out.reply, status: out.status, language: out.language, cards: out.cards, message_id: out.messageId, conversation_id: out.conversationId });
+      res.json({ reply: out.reply, status: out.status, language: out.language, cards: out.cards, message_id: out.messageId, conversation_id: out.conversationId, timestamp: out.timestamp });
     } catch (err) {
       console.error("chat failed:", err instanceof Error ? err.message : err);
       res.status(503).json({ error: "unavailable" }); // the widget shows its "unavailable, please contact admissions" state
@@ -81,7 +81,7 @@ export function chatRouter(llmProvider?: LlmProvider, sttProvider?: SttProvider)
       });
       res.json({
         transcript: result.transcript, reply: out.reply, status: out.status, language: out.language,
-        cards: out.cards, message_id: out.messageId, conversation_id: out.conversationId,
+        cards: out.cards, message_id: out.messageId, conversation_id: out.conversationId, timestamp: out.timestamp,
       });
     } catch (err) {
       console.error("voice chat failed:", err instanceof Error ? err.message : err);

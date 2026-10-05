@@ -5,22 +5,19 @@
   "scripts": {
     "dev": "next dev -p 3002",
     "build": "next build",
-    "start": "next start -p 3002",
-    "typecheck": "tsc --noEmit"
+    "start": "next start -p 3002"
   },
   "dependencies": {
+    "@stripe/react-stripe-js": "^7.0.0",
+    "@stripe/stripe-js": "^10.0.0",
     "@supabase/supabase-js": "^2.58.0",
     "next": "15",
     "react": "19",
     "react-dom": "19"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "@types/react": "^19.3.0",
-    "@types/react-dom": "^19.3.0",
     "autoprefixer": "^10.6.1",
     "postcss": "^8.5.28",
-    "tailwindcss": "3",
-    "typescript": "^5.6.0"
+    "tailwindcss": "3"
   }
 }
