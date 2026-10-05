@@ -52,7 +52,7 @@ platformRouter.post("/access-requests/:id/approve", async (req, res, next) => {
     // it would never catch a real collision. Catching the actual unique_violation and retrying with the next
     // suffix is the only check that can't lie.
     let result: { id: string; name: string; subdomain: string; inviteToken: string; email: string } | null = null;
-    for (let attempt = 0; attempt < 5; attempt++) {
+    for (let attempt = 0; attempt < 10; attempt++) {
       try {
         result = await withoutTenant(async (tx) => {
           const reqRow = (await tx.query(`SELECT * FROM access_requests WHERE id = $1 AND status = 'pending'`, [req.params.id])).rows[0] as
@@ -60,7 +60,10 @@ platformRouter.post("/access-requests/:id/approve", async (req, res, next) => {
             | undefined;
           if (!reqRow) return null;
           const base = body.data.subdomain ?? slugify(reqRow.university_name);
-          const resolvedSubdomain = attempt === 0 ? base : `${base}-${attempt + 1}`;
+          // A random suffix rather than a sequential one (-2, -3, ...): testing with the same university name
+          // repeatedly ran this out of sequential suffixes after exactly 5 duplicates, hitting the real
+          // constraint again. A short random suffix can't be exhausted by how many duplicates already exist.
+          const resolvedSubdomain = attempt === 0 ? base : `${base}-${randomBytes(3).toString("hex")}`;
 
           // The tenants RLS policy is WITH CHECK (id = current_tenant_id()): inserting a self-generated id, having
           // first set that same id as this transaction's tenant context (SET LOCAL, same mechanism withTenant()
@@ -87,7 +90,7 @@ platformRouter.post("/access-requests/:id/approve", async (req, res, next) => {
         break;
       } catch (err) {
         const pgErr = err as { code?: string; constraint?: string };
-        if (pgErr.code === "23505" && pgErr.constraint === "tenants_subdomain_key" && attempt < 4) continue;
+        if (pgErr.code === "23505" && pgErr.constraint === "tenants_subdomain_key" && attempt < 9) continue;
         throw err;
       }
     }
