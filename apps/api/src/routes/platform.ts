@@ -46,41 +46,51 @@ platformRouter.post("/access-requests/:id/approve", async (req, res, next) => {
   const body = Approve.safeParse(req.body ?? {});
   if (!body.success) return res.status(400).json({ error: "invalid_request" });
   try {
-    const result = await withoutTenant(async (tx) => {
-      const reqRow = (await tx.query(`SELECT * FROM access_requests WHERE id = $1 AND status = 'pending'`, [req.params.id])).rows[0] as
-        | { id: string; university_name: string; contact_name: string; email: string }
-        | undefined;
-      if (!reqRow) return null;
+    // Each attempt is its own transaction (withoutTenant = BEGIN..COMMIT), so a conflict on the subdomain's
+    // unique constraint can't be pre-checked with a SELECT: tenants has per-tenant RLS, and no tenant context
+    // exists yet at that point, so the SELECT would always see zero rows regardless of what's actually taken --
+    // it would never catch a real collision. Catching the actual unique_violation and retrying with the next
+    // suffix is the only check that can't lie.
+    let result: { id: string; name: string; subdomain: string; inviteToken: string; email: string } | null = null;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      try {
+        result = await withoutTenant(async (tx) => {
+          const reqRow = (await tx.query(`SELECT * FROM access_requests WHERE id = $1 AND status = 'pending'`, [req.params.id])).rows[0] as
+            | { id: string; university_name: string; contact_name: string; email: string }
+            | undefined;
+          if (!reqRow) return null;
+          const base = body.data.subdomain ?? slugify(reqRow.university_name);
+          const resolvedSubdomain = attempt === 0 ? base : `${base}-${attempt + 1}`;
 
-      let subdomain = body.data.subdomain ?? slugify(reqRow.university_name);
-      for (let attempt = 0; ; attempt++) {
-        const taken = (await tx.query(`SELECT 1 FROM tenants WHERE subdomain = $1`, [subdomain])).rowCount;
-        if (!taken) break;
-        subdomain = `${body.data.subdomain ?? slugify(reqRow.university_name)}-${attempt + 2}`;
+          // The tenants RLS policy is WITH CHECK (id = current_tenant_id()): inserting a self-generated id, having
+          // first set that same id as this transaction's tenant context (SET LOCAL, same mechanism withTenant()
+          // uses), satisfies it without bypassing RLS at all -- exactly what seed.ts does under app_migrator, just
+          // via the app's own app_user role. tenant_limits and the staff_invite below land in the same context.
+          const tenantId = randomUUID();
+          await tx.query("SELECT set_config('app.tenant_id', $1, true)", [tenantId]);
+          const defaults = (await tx.query(`SELECT default_plan_limits FROM platform_settings`)).rows[0]?.default_plan_limits as
+            Record<string, { conversations: number; messages: number }> | undefined;
+          const starter = defaults?.starter;
+          await tx.query(`INSERT INTO tenants (id, name, subdomain) VALUES ($1, $2, $3)`, [tenantId, reqRow.university_name, resolvedSubdomain]);
+          await tx.query(
+            `INSERT INTO tenant_limits (tenant_id, monthly_conversation_limit, monthly_message_limit) VALUES ($1, COALESCE($2, 500), COALESCE($3, 5000))`,
+            [tenantId, starter?.conversations, starter?.messages]);
+          const token = randomBytes(24).toString("hex");
+          await inviteStaff(tx, reqRow.email, "admin", createHash("sha256").update(token).digest("hex"), req.platformAdmin!.authUserId);
+
+          await tx.query(
+            `UPDATE access_requests SET status = 'approved', reviewed_by = $2, reviewed_at = now() WHERE id = $1`,
+            [reqRow.id, req.platformAdmin!.email]);
+          await logPlatformAction(tx, req.platformAdmin!.email, "approved_tenant", reqRow.university_name, "Approved pending signup request · Starter plan");
+          return { id: tenantId, name: reqRow.university_name, subdomain: resolvedSubdomain, inviteToken: token, email: reqRow.email };
+        });
+        break;
+      } catch (err) {
+        const pgErr = err as { code?: string; constraint?: string };
+        if (pgErr.code === "23505" && pgErr.constraint === "tenants_subdomain_key" && attempt < 4) continue;
+        throw err;
       }
-
-      // The tenants RLS policy is WITH CHECK (id = current_tenant_id()): inserting a self-generated id, having
-      // first set that same id as this transaction's tenant context (SET LOCAL, same mechanism withTenant()
-      // uses), satisfies it without bypassing RLS at all -- exactly what seed.ts does under app_migrator, just
-      // via the app's own app_user role. tenant_limits and the staff_invite below land in the same context.
-      const tenantId = randomUUID();
-      await tx.query("SELECT set_config('app.tenant_id', $1, true)", [tenantId]);
-      const defaults = (await tx.query(`SELECT default_plan_limits FROM platform_settings`)).rows[0]?.default_plan_limits as
-        Record<string, { conversations: number; messages: number }> | undefined;
-      const starter = defaults?.starter;
-      await tx.query(`INSERT INTO tenants (id, name, subdomain) VALUES ($1, $2, $3)`, [tenantId, reqRow.university_name, subdomain]);
-      await tx.query(
-        `INSERT INTO tenant_limits (tenant_id, monthly_conversation_limit, monthly_message_limit) VALUES ($1, COALESCE($2, 500), COALESCE($3, 5000))`,
-        [tenantId, starter?.conversations, starter?.messages]);
-      const token = randomBytes(24).toString("hex");
-      await inviteStaff(tx, reqRow.email, "admin", createHash("sha256").update(token).digest("hex"), req.platformAdmin!.authUserId);
-
-      await tx.query(
-        `UPDATE access_requests SET status = 'approved', reviewed_by = $2, reviewed_at = now() WHERE id = $1`,
-        [reqRow.id, req.platformAdmin!.email]);
-      await logPlatformAction(tx, req.platformAdmin!.email, "approved_tenant", reqRow.university_name, "Approved pending signup request · Starter plan");
-      return { id: tenantId, name: reqRow.university_name, subdomain, inviteToken: token, email: reqRow.email };
-    });
+    }
     if (!result) return res.status(404).json({ error: "not_found_or_already_reviewed" });
     // Same pattern as staff.ts's own /invite route: the raw token only ever exists here and in this email --
     // the DB keeps only its hash. Unconfigured SMTP makes sendEmail a safe no-op (email.ts), which is why the
