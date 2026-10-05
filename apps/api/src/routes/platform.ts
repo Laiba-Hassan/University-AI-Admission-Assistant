@@ -97,10 +97,18 @@ platformRouter.post("/access-requests/:id/approve", async (req, res, next) => {
     // frontend still needs the raw token back regardless of whether this actually sent.
     const origin = req.header("origin") ?? "";
     const link = `${origin}/accept-invite?token=${result.inviteToken}`;
-    const emailed = origin ? await sendEmail(result.email, `You're invited to join ${result.name}`,
-      `<p>Your university, <strong>${result.name}</strong>, has been approved on Enrollium.</p>
-       <p><a href="${link}">Accept the invite</a> to set up your admin account (expires in 7 days).</p>
-       <p>If the link doesn't work, copy this into your browser:<br>${link}</p>`) : false;
+    // The tenant and invite are already committed at this point -- an SMTP hiccup (timeout, a provider briefly
+    // rejecting the connection) must not turn an otherwise-successful approval into a 500 the admin has to retry
+    // into a duplicate-subdomain situation. Same fallback either way: the frontend shows the raw link.
+    let emailed = false;
+    if (origin) {
+      try {
+        emailed = await sendEmail(result.email, `You're invited to join ${result.name}`,
+          `<p>Your university, <strong>${result.name}</strong>, has been approved on Enrollium.</p>
+           <p><a href="${link}">Accept the invite</a> to set up your admin account (expires in 7 days).</p>
+           <p>If the link doesn't work, copy this into your browser:<br>${link}</p>`);
+      } catch { /* emailed stays false -- the frontend banner falls back to the copyable link */ }
+    }
     res.status(201).json({ tenant_id: result.id, tenant_name: result.name, subdomain: result.subdomain, invite_token: result.inviteToken, emailed });
   } catch (err) { next(err); }
 });

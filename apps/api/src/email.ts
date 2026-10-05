@@ -1,5 +1,12 @@
+import dns from "node:dns";
 import nodemailer from "nodemailer";
 import { config } from "./config.js";
+
+// Railway's network has no outbound IPv6 route, but Node resolves smtp.gmail.com's IPv6 address first by
+// default -- ENETUNREACH, every time, on a host that works fine over IPv4. Nodemailer's own TS types don't
+// expose a `family` option to force this per-transport, so it's set globally instead (safe: this process makes
+// no other outbound IPv6 connections).
+dns.setDefaultResultOrder("ipv4first");
 
 // Generic SMTP sender (Gmail with an App Password, or any other provider) -- deliberately not tied to one
 // vendor's API. Mirrors VAPID/push's own pattern: silently no-op when unconfigured instead of throwing, so local
