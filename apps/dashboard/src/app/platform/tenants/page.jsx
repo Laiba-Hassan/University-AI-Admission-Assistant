@@ -11,6 +11,7 @@ export default function TenantsPage() {
   const [filter, setFilter] = useState("all");
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(null);
+  const [inviteResult, setInviteResult] = useState(null);
   async function load() {
     const [reqs, ten] = await Promise.all([apiJson("/api/platform/access-requests?status=pending"), apiJson("/api/platform/tenants")]);
     setRequests(reqs.requests);
@@ -46,9 +47,16 @@ export default function TenantsPage() {
   async function approve(id) {
     setBusy(id);
     try {
-      await apiFetch(`/api/platform/access-requests/${id}/approve`, {
+      const res = await apiFetch(`/api/platform/access-requests/${id}/approve`, {
         method: "POST"
       });
+      if (res.ok) {
+        const body = await res.json();
+        // No SMTP in every environment (same pattern as Settings -> Team's own invite flow) -- without it,
+        // the raw token this response carries is the only way the new admin ever gets in, so it has to be
+        // shown here, not discarded. The DB only ever stores the token's hash -- this is the one copy that exists.
+        setInviteResult({ name: body.tenant_name, link: `${window.location.origin}/accept-invite?token=${body.invite_token}` });
+      }
       await load();
     } finally {
       setBusy(null);
@@ -81,6 +89,22 @@ export default function TenantsPage() {
   }
   return <div>
       <PlatformHeader title="Tenants" />
+
+      {inviteResult && <div className="card mb-5 p-5" style={{ borderColor: "var(--chip-approved-fg)" }}>
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <h2 className="font-heading text-base font-semibold text-ink">{inviteResult.name} approved</h2>
+              <p className="mt-1 text-xs text-muted">
+                No email is configured in this environment, so send this invite link to their admin directly -- it only works once.
+              </p>
+              <code className="mt-2 block overflow-x-auto whitespace-nowrap rounded-lg bg-tint px-3 py-2 text-xs text-ink-2">{inviteResult.link}</code>
+            </div>
+            <div className="flex shrink-0 gap-2">
+              <button onClick={() => navigator.clipboard.writeText(inviteResult.link)} className="rounded-lg border border-line px-3 py-1.5 text-xs font-semibold hover:bg-tint">Copy</button>
+              <button onClick={() => setInviteResult(null)} className="rounded-lg border border-line px-3 py-1.5 text-xs font-semibold hover:bg-tint">Dismiss</button>
+            </div>
+          </div>
+        </div>}
 
       {requests && requests.length > 0 && <div className="card mb-5 p-5">
           <div className="mb-3 flex items-center gap-2">
