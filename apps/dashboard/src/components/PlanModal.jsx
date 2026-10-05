@@ -66,14 +66,18 @@ export function PlanModal({
     }}>{reason === "payment" ? "Your card on file is failing and the grace period is up. Update it to keep your assistant answering students." : "Your demo has ended. Choose a plan to keep your assistant answering students."}</p>}
 
       {!plan && <div className="grid gap-4 sm:grid-cols-2">
-          {PLANS.map(p => <button key={p.id} onClick={() => setPlan(p.id)} className="flex flex-col items-start rounded-xl border border-line p-5 text-left hover:border-accent">
+          {PLANS.map(p => <button key={p.id} onClick={() => setPlan(p.id)} className="flex h-full flex-col items-start rounded-xl border border-line p-5 text-left hover:border-accent">
               <div className="text-xs font-semibold uppercase tracking-wide text-muted">{p.tagline}</div>
               <div className="mt-1 font-heading text-xl font-semibold text-ink">{p.name}</div>
               <div className="mt-2 text-2xl font-semibold text-ink">{p.price}<span className="text-sm font-medium text-ink-2">/mo</span></div>
               <ul className="mt-4 space-y-1.5 text-sm text-ink-2">
                 {p.features.map(f => <li key={f} className="flex gap-2"><span className="text-accent">✓</span>{f}</li>)}
               </ul>
-              <span className="mt-4 w-full rounded-lg bg-accent px-4 py-2 text-center text-sm font-semibold text-white">Get {p.name}</span>
+              {/* mt-auto instead of mt-4: Starter's feature list wraps to more lines than Growth's, so a fixed
+                 margin left "Get Starter" and "Get Growth" sitting at different heights across the two cards.
+                 Pushing this to the bottom of the flex column (both buttons now h-full, same grid row) keeps
+                 them on the same line regardless of how each plan's feature text wraps. */}
+              <span className="mt-auto w-full rounded-lg bg-accent px-4 py-2 text-center text-sm font-semibold text-white">Get {p.name}</span>
             </button>)}
         </div>}
 
