@@ -50,12 +50,11 @@ const Env = z.object({
   // WhatsApp webhook already has for WHATSAPP_APP_SECRET.
   STRIPE_WEBHOOK_SECRET: optional,
 
-  // Outbound email (staff invites). Unset = email.ts silently no-ops, same pattern as VAPID above -- the invite
-  // still gets created either way, the caller just falls back to showing a copyable link instead.
-  SMTP_HOST: optional,
-  SMTP_PORT: z.coerce.number().int().default(587),
-  SMTP_USER: optional,
-  SMTP_PASS: optional,
+  // Outbound email (staff invites), sent via Resend's HTTP API rather than raw SMTP -- SMTP ports are blocked
+  // outbound on Railway (and most PaaS hosts, as anti-spam policy), so a real SMTP server was never reachable
+  // there regardless of credentials. Unset = email.ts silently no-ops, same pattern as VAPID above -- the
+  // invite still gets created either way, the caller just falls back to showing a copyable link instead.
+  RESEND_API_KEY: optional,
   SMTP_FROM: optional,
 
   // Phase 4: public widget hardening (PRD Section 11, enforced "from the first public deployment").

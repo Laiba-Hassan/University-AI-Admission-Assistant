@@ -35,7 +35,8 @@ Follow `docs/staging-setup.md` end to end first — project, roles, connection s
    - `CHALLENGE_SIGNING_SECRET` — any random string, 16+ chars
    - `STRIPE_SECRET_KEY` / `STRIPE_PUBLISHABLE_KEY` — your Stripe **test mode** keys
    - `STRIPE_WEBHOOK_SECRET` — fill in *after* step 2.5 below
-   - `WHATSAPP_*`, `VAPID_*`, `SMTP_*`, `TURNSTILE_*` — only if you're testing those features; leave blank otherwise, each one no-ops safely when unset (see the comments in `apps/api/src/config.ts`)
+   - `WHATSAPP_*`, `VAPID_*`, `TURNSTILE_*` — only if you're testing those features; leave blank otherwise, each one no-ops safely when unset (see the comments in `apps/api/src/config.ts`)
+   - `RESEND_API_KEY` / `SMTP_FROM` — only if you want staff invites actually emailed instead of shown as a copyable link. Sign up at resend.com (free tier), create an API key. Don't use raw SMTP here -- Railway (and most PaaS hosts) blocks outbound SMTP ports entirely as anti-spam policy, confirmed the hard way: every send hung for the full connection timeout regardless of credentials.
 
    Railway auto-sets `PORT` itself (the API already reads `process.env.PORT`, `apps/api/src/config.ts:10`) — don't
    set it yourself.
