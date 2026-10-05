@@ -19,6 +19,10 @@ export default function TenantsPage() {
   }
   useEffect(() => {
     void load();
+    // Mirrors the staff dashboard's own sidebar-count polling (lib/alerts.js's useSidebarCounts) -- this page
+    // previously only ever loaded once, so a new signup request sat invisible until a manual refresh.
+    const id = setInterval(() => void load(), 15_000);
+    return () => clearInterval(id);
   }, []);
   const counts = useMemo(() => {
     if (!tenants) return {
