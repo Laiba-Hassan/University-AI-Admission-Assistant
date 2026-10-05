@@ -1,8 +1,8 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
-import { AuthCard, Field } from "@/components/AuthCard";
+import { Suspense, useEffect, useState } from "react";
+import { AuthCard, Divider, Field, GoogleButton } from "@/components/AuthCard";
 import { API_URL } from "@/lib/config";
 import { supabase } from "@/lib/supabase";
 function AcceptInviteForm() {
@@ -13,6 +13,59 @@ function AcceptInviteForm() {
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [tenantName, setTenantName] = useState(null);
+
+  async function completeAccept(accessToken) {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_URL}/api/public/invites/accept`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${accessToken}`
+        },
+        body: JSON.stringify({
+          token
+        })
+      });
+      if (!res.ok) throw new Error(res.status === 404 ? "This invite link is invalid or has expired." : "Something went wrong.");
+      const body = await res.json();
+      setTenantName(body.tenantName);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Google's OAuth redirect lands back on this exact page (redirectTo carries the token along) -- by the time
+  // it does, supabase-js has already parsed the session out of the URL hash, so picking it up here and
+  // finishing the accept automatically means the admin isn't dropped back on a bare "Join your team" screen
+  // with no indication anything happened.
+  useEffect(() => {
+    if (!supabase || !token) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!cancelled && data.session) await completeAccept(data.session.access_token);
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  async function signInWithGoogle() {
+    if (!supabase) return setError("Auth is not configured yet.");
+    if (!token) return setError("This invite link is missing its token.");
+    await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/accept-invite?token=${token}`
+      }
+    });
+  }
+
   async function submit(e) {
     e.preventDefault();
     if (!supabase) return setError("Auth is not configured yet.");
@@ -47,25 +100,7 @@ function AcceptInviteForm() {
       }
       return setError("Could not sign you in. Double-check your email and password.");
     }
-    try {
-      const res = await fetch(`${API_URL}/api/public/invites/accept`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${data.session.access_token}`
-        },
-        body: JSON.stringify({
-          token
-        })
-      });
-      if (!res.ok) throw new Error(res.status === 404 ? "This invite link is invalid or has expired." : "Something went wrong.");
-      const body = await res.json();
-      setTenantName(body.tenantName);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
-    } finally {
-      setBusy(false);
-    }
+    await completeAccept(data.session.access_token);
   }
   if (tenantName) {
     return <AuthCard title="You're in!" subtitle={`You've joined ${tenantName}'s admissions dashboard.`}>
@@ -75,6 +110,8 @@ function AcceptInviteForm() {
       </AuthCard>;
   }
   return <AuthCard title="Join your team" subtitle="Accept your staff invitation">
+      <GoogleButton onClick={signInWithGoogle} disabled={busy} />
+      <Divider text="or continue with email" />
       <div className="mb-4 flex gap-2 text-xs">
         <button onClick={() => setMode("new")} className={`rounded-full px-3 py-1 font-semibold ${mode === "new" ? "bg-accent text-white" : "border border-line text-ink-2"}`}>New account</button>
         <button onClick={() => setMode("existing")} className={`rounded-full px-3 py-1 font-semibold ${mode === "existing" ? "bg-accent text-white" : "border border-line text-ink-2"}`}>I already have an account</button>
