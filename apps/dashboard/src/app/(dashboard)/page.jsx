@@ -1,10 +1,12 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Kpi, KpiStrip } from "@/components/Kpi";
-import { PlanModal } from "@/components/PlanModal";
 import { NotificationsModal } from "@/components/ProfileModals";
+// Keeps Stripe's SDK out of the Overview bundle for the common case (not in a demo/payment-failed state).
+const PlanModal = dynamic(() => import("@/components/PlanModal").then(m => m.PlanModal), { ssr: false });
 import { ResolutionChart, ResolutionLegend, VolumeTrendChart } from "@/components/TrendCharts";
 import { API_URL } from "@/lib/config";
 import { getAccessToken, useStaffSession } from "@/lib/session";
@@ -27,17 +29,15 @@ export default function OverviewPage() {
     (async () => {
       const token = await getAccessToken();
       if (!token) return;
-      const res = await fetch(`${API_URL}/api/v1/settings/channels`, {
-        headers: {
-          authorization: `Bearer ${token}`
-        }
-      });
+      const headers = {
+        authorization: `Bearer ${token}`
+      };
+      const [res, ob] = await Promise.all([fetch(`${API_URL}/api/v1/settings/channels`, {
+        headers
+      }), fetch(`${API_URL}/api/v1/onboarding/status`, {
+        headers
+      })]);
       if (res.ok) setChannels(await res.json());
-      const ob = await fetch(`${API_URL}/api/v1/onboarding/status`, {
-        headers: {
-          authorization: `Bearer ${token}`
-        }
-      });
       if (ob.ok) setOnboarding(await ob.json());
     })();
   }, []);

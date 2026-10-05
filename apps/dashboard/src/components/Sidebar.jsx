@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
@@ -7,7 +8,9 @@ import { useSidebarCounts } from "@/lib/alerts";
 import { displayName } from "@/lib/names";
 import { useStaffSession } from "@/lib/session";
 import { AccountSettingsModal, HelpModal, LogoutConfirmModal, NotificationsModal } from "@/components/ProfileModals";
-import { PlanModal } from "@/components/PlanModal";
+// Stripe's SDK is pulled in by PlanModal -- every other dashboard page would otherwise ship it in its bundle
+// just because Sidebar renders on all of them. Loaded only once someone actually opens the modal.
+const PlanModal = dynamic(() => import("@/components/PlanModal").then(m => m.PlanModal), { ssr: false });
 const NAV = [{
   href: "/",
   label: "Overview",
@@ -47,7 +50,7 @@ export function Sidebar({
   const counts = useSidebarCounts(session.status === "ready");
   const [menuOpen, setMenuOpen] = useState(false);
   const [modal, setModal] = useState(null);
-  return <div className="side-rail relative">
+  return <div className="side-rail relative" onMouseLeave={() => setMenuOpen(false)}>
       <div className="side-panel">
         <Link href="/" className="flex shrink-0 items-center gap-3 px-6 py-5">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-accent font-heading text-sm font-semibold text-accent">
@@ -112,11 +115,13 @@ export function Sidebar({
       </div>
 
       {/* A sibling of .side-panel, not a child of it: .side-panel has overflow:hidden and only widens to 252px
-         on hover, but this menu is w-64 (256px) -- nested inside .side-panel, its right edge (rounded corner
+         on hover, but this menu is wide enough that nested inside .side-panel its right edge (rounded corner
          included) was clipped off. .side-rail (this component's own root, position:relative) is the same
-         positioning anchor either way, so moving it here keeps the exact same bottom-16/left-3 placement while
-         actually rendering as a complete, fully-rounded box. */}
-      {menuOpen && <div className="card side-label absolute bottom-16 left-3 w-64 py-1.5 shadow-lg" style={{ zIndex: 40 }}>
+         positioning anchor either way, so this keeps the same bottom-16/left-3 placement while actually
+         rendering as a complete, fully-rounded box. Width is 252px (the hover-expanded panel) minus the 12px
+         side margins on both sides, so the menu sits fully inside the panel instead of overlapping the main
+         content next to it. */}
+      {menuOpen && <div className="card side-label absolute bottom-16 left-3 w-[228px] py-1.5 shadow-lg" style={{ zIndex: 40 }}>
           <div className="border-b border-line px-4 py-3">
             <div className="text-sm font-semibold text-ink">{displayName(session)}</div>
             <div className="truncate text-xs text-muted">{session.email}</div>

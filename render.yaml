@@ -1,0 +1,52 @@
+services:
+  - type: web
+    name: enrollium-api
+    runtime: node
+    plan: free
+    rootDir: .
+    buildCommand: corepack enable && pnpm install --frozen-lockfile
+    startCommand: pnpm --filter @uaa/api start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Supabase connection strings (docs/staging-setup.md) -- fill in from your project's Connect dialog.
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_URL_MIGRATOR
+        sync: false
+      - key: DATABASE_URL_QUEUE
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: SUPABASE_JWKS_URL
+        sync: false
+      - key: WHATSAPP_APP_SECRET
+        sync: false
+      - key: WHATSAPP_VERIFY_TOKEN
+        sync: false
+      - key: SECRETS_ENCRYPTION_KEY
+        sync: false
+      - key: CHALLENGE_SIGNING_SECRET
+        sync: false
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_PUBLISHABLE_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      - key: TURNSTILE_SITE_KEY
+        sync: false
+      - key: TURNSTILE_SECRET_KEY
+        sync: false
