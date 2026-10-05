@@ -3,6 +3,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { staffCors } from "../cors.js";
 import { pool, withoutTenant, withTenant, type Tx } from "../db.js";
+import { sendEmail } from "../email.js";
 import { getOverview } from "../overview.js";
 import { approvePasswordChange, getTeam, inviteStaff } from "../settings.js";
 import { resolvePlatformAdmin } from "../tenancy.js";
@@ -78,12 +79,19 @@ platformRouter.post("/access-requests/:id/approve", async (req, res, next) => {
         `UPDATE access_requests SET status = 'approved', reviewed_by = $2, reviewed_at = now() WHERE id = $1`,
         [reqRow.id, req.platformAdmin!.email]);
       await logPlatformAction(tx, req.platformAdmin!.email, "approved_tenant", reqRow.university_name, "Approved pending signup request · Starter plan");
-      return { id: tenantId, name: reqRow.university_name, subdomain, inviteToken: token };
+      return { id: tenantId, name: reqRow.university_name, subdomain, inviteToken: token, email: reqRow.email };
     });
     if (!result) return res.status(404).json({ error: "not_found_or_already_reviewed" });
-    // The raw invite token is returned once, same as staff.ts's own invite route -- delivering it to the new
-    // admin (email, Phase 7 automations) is a separate concern from creating it.
-    res.status(201).json({ tenant_id: result.id, tenant_name: result.name, subdomain: result.subdomain, invite_token: result.inviteToken });
+    // Same pattern as staff.ts's own /invite route: the raw token only ever exists here and in this email --
+    // the DB keeps only its hash. Unconfigured SMTP makes sendEmail a safe no-op (email.ts), which is why the
+    // frontend still needs the raw token back regardless of whether this actually sent.
+    const origin = req.header("origin") ?? "";
+    const link = `${origin}/accept-invite?token=${result.inviteToken}`;
+    const emailed = origin ? await sendEmail(result.email, `You're invited to join ${result.name}`,
+      `<p>Your university, <strong>${result.name}</strong>, has been approved on Enrollium.</p>
+       <p><a href="${link}">Accept the invite</a> to set up your admin account (expires in 7 days).</p>
+       <p>If the link doesn't work, copy this into your browser:<br>${link}</p>`) : false;
+    res.status(201).json({ tenant_id: result.id, tenant_name: result.name, subdomain: result.subdomain, invite_token: result.inviteToken, emailed });
   } catch (err) { next(err); }
 });
 

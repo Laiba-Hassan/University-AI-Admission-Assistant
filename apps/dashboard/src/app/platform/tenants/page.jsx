@@ -55,7 +55,7 @@ export default function TenantsPage() {
         // No SMTP in every environment (same pattern as Settings -> Team's own invite flow) -- without it,
         // the raw token this response carries is the only way the new admin ever gets in, so it has to be
         // shown here, not discarded. The DB only ever stores the token's hash -- this is the one copy that exists.
-        setInviteResult({ name: body.tenant_name, link: `${window.location.origin}/accept-invite?token=${body.invite_token}` });
+        setInviteResult({ name: body.tenant_name, link: `${window.location.origin}/accept-invite?token=${body.invite_token}`, emailed: body.emailed });
       }
       await load();
     } finally {
@@ -95,7 +95,7 @@ export default function TenantsPage() {
             <div className="min-w-0">
               <h2 className="font-heading text-base font-semibold text-ink">{inviteResult.name} approved</h2>
               <p className="mt-1 text-xs text-muted">
-                No email is configured in this environment, so send this invite link to their admin directly -- it only works once.
+                {inviteResult.emailed ? "An invite email was sent to their admin. Here's the same link, in case it doesn't arrive:" : "No email is configured in this environment, so send this invite link to their admin directly -- it only works once."}
               </p>
               <code className="mt-2 block overflow-x-auto whitespace-nowrap rounded-lg bg-tint px-3 py-2 text-xs text-ink-2">{inviteResult.link}</code>
             </div>
