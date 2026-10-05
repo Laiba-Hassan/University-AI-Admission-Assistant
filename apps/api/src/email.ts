@@ -14,5 +14,10 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
     headers: { authorization: `Bearer ${config.RESEND_API_KEY}`, "content-type": "application/json" },
     body: JSON.stringify({ from: config.SMTP_FROM ?? "Enrollium <onboarding@resend.dev>", to, subject, html }),
   });
+  // Resend's error responses (invalid key, unverified recipient on the free tier, bad "from" address) are
+  // otherwise invisible -- the caller only ever sees a bare `false` and falls back to the copyable link, with
+  // no way to tell "not configured" apart from "configured but rejected". Logged, not thrown: a rejected send
+  // still shouldn't fail the approval that triggered it.
+  if (!res.ok) console.error("sendEmail: Resend rejected the request:", res.status, await res.text().catch(() => ""));
   return res.ok;
 }
