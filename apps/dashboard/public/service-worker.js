@@ -18,6 +18,24 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   if (event.request.method !== "GET" || url.pathname.startsWith("/api/")) return; // network-only for data
+
+  // The page shell itself (navigations) must go network-first: cache-first on "/" meant the first deploy ever
+  // installed got stuck in the cache forever -- a redeploy's fixed/updated HTML+JS never reached a returning
+  // visitor because the fixed cache name (SHELL_CACHE) never changes between deploys, so the "clear old caches"
+  // step in `activate` had nothing to actually clear. Falling back to the cache only kicks in when genuinely
+  // offline, which is what the PWA offline-install requirement actually needs.
+  if (event.request.mode === "navigate") {
+    event.respondWith(
+      fetch(event.request)
+        .then((res) => {
+          caches.open(SHELL_CACHE).then((cache) => cache.put(event.request, res.clone()));
+          return res;
+        })
+        .catch(() => caches.match(event.request)),
+    );
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request).then((cached) => cached ?? fetch(event.request)),
   );
