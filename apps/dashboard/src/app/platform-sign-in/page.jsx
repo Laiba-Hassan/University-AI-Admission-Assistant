@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AuthCard, Field } from "@/components/AuthCard";
+import { AuthCard, Divider, Field, GoogleButton } from "@/components/AuthCard";
 import { supabase } from "@/lib/supabase";
 
 // A platform admin signs in through the same Supabase Auth as staff -- what makes them a platform admin is a
@@ -27,7 +27,18 @@ export default function PlatformSignInPage() {
     if (err) return setError(err.message);
     window.location.href = "/platform/tenants";
   }
+  async function signInWithGoogle() {
+    if (!supabase) return setError("Auth is not configured yet -- ask your admin to set NEXT_PUBLIC_SUPABASE_ANON_KEY.");
+    await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/platform/tenants`
+      }
+    });
+  }
   return <AuthCard title="Enrollium Platform" subtitle="Sign in with your platform admin account">
+      <GoogleButton onClick={signInWithGoogle} />
+      <Divider text="or continue with email" />
       <form onSubmit={signIn}>
         <Field label="Email" type="email" value={email} onChange={setEmail} placeholder="you@enrollium.ai" required />
         <Field label="Password" type="password" value={password} onChange={setPassword} placeholder="••••••••" required />
