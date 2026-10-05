@@ -495,11 +495,12 @@ staffRouter.post("/onboarding/complete", requireRole("admin"), async (req, res, 
   try { await withTenant(tenantOf(req), completeOnboarding); res.status(204).end(); } catch (err) { next(err); }
 });
 
-// "Skip" beside Go live: starts the time-limited demo (PLAN_WHATSAPP default off) and still marks onboarding
-// complete -- skipping a plan isn't the same as skipping setup; they still land on the real dashboard.
+// "Skip" beside Go live: starts the time-limited demo (PLAN_WHATSAPP default off) without marking onboarding
+// complete -- skipping the plan choice isn't the same as finishing setup, and the admin should still see
+// "Finish tenant setup" on Overview as a reminder to come back and do knowledge/branding/channels later.
 staffRouter.post("/onboarding/start-demo", requireRole("admin"), async (req, res, next) => {
   try {
-    await withTenant(tenantOf(req), async (tx) => { await startDemo(tx); await completeOnboarding(tx); });
+    await withTenant(tenantOf(req), (tx) => startDemo(tx));
     res.status(204).end();
   } catch (err) { next(err); }
 });

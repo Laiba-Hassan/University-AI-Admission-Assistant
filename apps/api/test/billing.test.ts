@@ -32,13 +32,13 @@ before(async () => {
 after(async () => { server.close(); await deleteTenants([A.id]); await db.pool.end(); });
 
 describe("POST /api/v1/onboarding/start-demo", () => {
-  it("sets plan_label='demo', a 4-day expiry, turns WhatsApp off, and also marks onboarding complete", async () => {
+  it("sets plan_label='demo', a 4-day expiry, turns WhatsApp off, and leaves onboarding unmarked so 'Finish tenant setup' keeps showing", async () => {
     const res = await post("/api/v1/onboarding/start-demo", {});
     assert.equal(res.status, 204);
     const row = (await asOwner(A, "SELECT plan_label, demo_expires_at, onboarding_completed_at FROM tenants"))[0] as
       { plan_label: string; demo_expires_at: Date; onboarding_completed_at: Date | null };
     assert.equal(row.plan_label, "demo");
-    assert.ok(row.onboarding_completed_at);
+    assert.equal(row.onboarding_completed_at, null);
     const daysOut = (row.demo_expires_at.getTime() - Date.now()) / 86_400_000;
     assert.ok(daysOut > 3.9 && daysOut < 4.1, `expected ~4 days out, got ${daysOut}`);
     const limits = (await asOwner(A, "SELECT whatsapp_enabled FROM tenant_limits"))[0] as { whatsapp_enabled: boolean };
