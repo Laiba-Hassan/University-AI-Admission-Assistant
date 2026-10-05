@@ -18,6 +18,10 @@ export default function OnboardingPage() {
   useEffect(load, []);
   // "Go live" means a real plan -- picking one in the modal already activates it (billing.ts), this just clears
   // the onboarding checklist to match. "Skip" starts the time-limited demo instead, without ever opening billing.
+  // "Skip for now" means exactly that -- it used to leave the admin staring at this same checklist with nothing
+  // visibly different except the demo banner, when the whole point was to get out of setup and into the actual
+  // product. The Overview page's own "Finish tenant setup ->" link (session.js's onboarding fetch) still covers
+  // coming back to it later.
   async function skipToDemo() {
     setSkipping(true);
     try {
@@ -25,7 +29,7 @@ export default function OnboardingPage() {
         method: "POST"
       });
       session.setPlan?.("demo", new Date(Date.now() + 4 * 86_400_000).toISOString());
-      await load();
+      window.location.href = "/";
     } finally {
       setSkipping(false);
     }
