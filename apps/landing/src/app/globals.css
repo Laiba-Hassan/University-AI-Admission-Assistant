@@ -1,11 +1,16 @@
 /*
-  Layout concept: the real Enrollium product theme — warm cream surfaces,
-  terracotta accent, the same light/dark tokens as the staff dashboard
-  (apps/dashboard/src/app/globals.css) — carried through an editorial,
+  Layout concept: the real Enrollium product theme -- warm cream surfaces,
+  terracotta accent, the same dark tokens as the staff dashboard's own dark
+  theme (apps/dashboard/src/app/globals.css) -- carried through an editorial,
   professional marketing layout rather than the dashboard's app chrome.
+  Dark-only by explicit request; there's no toggle, so only one palette is defined.
 
-  Type — Spectral (headings, the product's own serif) + Work Sans (body/UI),
+  Type -- Spectral (headings, the product's own serif) + Work Sans (body/UI),
   self-hosted via next/font in layout.jsx, matching apps/dashboard's approach.
+
+  Dial: ENERGY 2 / RHYTHM 2 / MOTION 2 -- calm/professional (Stripe-Vercel register),
+  a few compositional breaks (the hero photo band) against otherwise consistent
+  sections, restrained scroll-reveal + hover motion only.
 */
 :root {
   --bg: #1c1a17; --bg-alt: #141210; --surface: #242220; --border: #4a453d;
@@ -14,14 +19,6 @@
   --success: #7fd99a; --success-subtle: #1e3b28;
   --navy: #f3efe8;
   color-scheme: dark;
-}
-:root[data-theme="light"] {
-  --bg: #f6f4ee; --bg-alt: #efeae0; --surface: #ffffff; --border: #d9d2c4;
-  --ink: #211e1b; --ink-2: #6b6459; --muted: #948c7e;
-  --accent: #c15f3c; --accent-ink: #ffffff; --accent-subtle: #f3e2d8;
-  --success: #1f7a3d; --success-subtle: #dcf5e3;
-  --navy: #211e1b;
-  color-scheme: light;
 }
 
 * { box-sizing: border-box; }
@@ -41,7 +38,9 @@ a { color: inherit; text-decoration: none; }
 img { max-width: 100%; display: block; }
 ::selection { background: var(--accent-subtle); color: var(--ink); }
 
-/* ---- reveal-on-scroll ---- */
+/* ---- reveal-on-scroll ----
+   One restrained fade+rise, nothing stacked on top of it: enough to pace a long page section by
+   section without turning the scroll into a show. Always off under prefers-reduced-motion. */
 .reveal { opacity: 1; transform: none; }
 @media (prefers-reduced-motion: no-preference) {
   .reveal { opacity: 0; transform: translateY(16px); transition: opacity 0.55s ease, transform 0.55s ease; }
@@ -62,13 +61,18 @@ nav.topbar .inner { display: flex; align-items: center; justify-content: space-b
 @media (min-width: 760px) { .nav-links { display: flex; } }
 .nav-cta {
   background: var(--navy); color: var(--bg); border: none; border-radius: 8px;
-  padding: 10px 18px; font-size: 14px; font-weight: 700; font-family: inherit; cursor: pointer; flex: 0 0 auto;
+  padding: 10px 18px; min-height: 44px; font-size: 14px; font-weight: 700; font-family: inherit;
+  cursor: pointer; flex: 0 0 auto; transition: opacity 0.15s ease;
 }
+.nav-cta:hover { opacity: 0.88; }
+.nav-cta:active { opacity: 0.76; }
 .nav-menu-toggle {
-  display: flex; align-items: center; justify-content: center; width: 40px; height: 40px;
+  display: flex; align-items: center; justify-content: center; width: 44px; height: 44px;
   background: none; border: 1px solid var(--border); border-radius: 8px; color: var(--ink);
-  cursor: pointer; flex: 0 0 auto;
+  cursor: pointer; flex: 0 0 auto; transition: background-color 0.15s ease;
 }
+.nav-menu-toggle:hover { background: var(--bg-alt); }
+.nav-menu-toggle:active { background: var(--border); }
 @media (min-width: 760px) { .nav-menu-toggle { display: none; } }
 /* Below 420px the bar has no room for brand + full CTA + toggle together -- the CTA moves into the
    dropdown sheet instead (nav-menu-cta below), so the bar itself only carries brand + toggle. */
@@ -120,22 +124,20 @@ nav.topbar .inner { display: flex; align-items: center; justify-content: space-b
 }
 .hero-inner { position: relative; z-index: 1; padding-block: 68px 76px; display: grid; grid-template-columns: 1fr; gap: 48px; align-items: center; }
 @media (min-width: 860px) { .hero-inner { grid-template-columns: 1.1fr 0.9fr; gap: 40px; } }
-.eyebrow {
-  display: inline-flex; align-items: center; gap: 8px; color: var(--accent);
-  font-weight: 700; font-size: 12.5px; letter-spacing: 0.06em; text-transform: uppercase;
-  background: var(--accent-subtle); border-radius: 6px; padding: 7px 14px; margin-bottom: 26px;
-}
-.eyebrow .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
 .hero h1 { font-size: clamp(32px, 5vw, 50px); line-height: 1.1; max-width: 13ch; color: var(--navy); }
 .hero .sub { margin-top: 20px; max-width: 46ch; font-size: 18px; color: var(--ink-2); }
 .hero .ctas { margin-top: 34px; display: flex; flex-wrap: wrap; gap: 12px; }
 .btn {
   display: inline-flex; align-items: center; gap: 8px; border-radius: 8px;
-  padding: 13px 24px; font-size: 15px; font-weight: 700; font-family: inherit;
-  text-decoration: none; cursor: pointer; border: 1px solid transparent;
+  padding: 13px 24px; min-height: 44px; font-size: 15px; font-weight: 700; font-family: inherit;
+  text-decoration: none; cursor: pointer; border: 1px solid transparent; transition: opacity 0.15s ease, background-color 0.15s ease;
 }
 .btn-primary { background: var(--navy); color: var(--bg); }
+.btn-primary:hover { opacity: 0.88; }
+.btn-primary:active { opacity: 0.76; }
 .btn-secondary { background: var(--surface); color: var(--ink); border-color: var(--border); }
+.btn-secondary:hover { background: var(--bg-alt); }
+.btn-secondary:active { background: var(--border); }
 
 /* proof card: a real snippet lifted from the widget */
 .proof { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 22px; box-shadow: 0 20px 48px rgba(16,24,40,0.08); }
@@ -167,7 +169,9 @@ section { padding-block: 64px; border-top: 1px solid var(--border); }
 .ps-card p { margin-top: 12px; color: var(--ink-2); font-size: 15.5px; }
 .ps-card p strong { color: var(--ink); }
 
-/* ---- how it works ---- */
+/* ---- how it works ----
+   Three steps because the real pipeline genuinely has three phases (ask, look up, verified
+   answer/handoff) -- this mirrors the actual system, it isn't a template filler count. */
 .steps { margin-top: 40px; display: grid; grid-template-columns: 1fr; gap: 0; }
 @media (min-width: 760px) { .steps { grid-template-columns: repeat(3, 1fr); gap: 28px; } }
 .step { position: relative; padding: 28px 0; border-top: 1px solid var(--border); }
@@ -176,7 +180,10 @@ section { padding-block: 64px; border-top: 1px solid var(--border); }
 .step h3 { font-size: 17px; margin-top: 10px; color: var(--ink); }
 .step p { margin-top: 8px; color: var(--ink-2); font-size: 15px; max-width: 32ch; }
 
-/* ---- features ---- */
+/* ---- features ----
+   All four cards share size/padding/icon treatment on purpose: these are four equally-weighted
+   product capabilities (assistant, verification, dashboard, KB governance), none of them is the
+   lead feature over the others, so uniform weight is the accurate hierarchy, not a default. */
 .feature-grid { margin-top: 32px; display: grid; grid-template-columns: 1fr; gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
 @media (min-width: 680px) { .feature-grid { grid-template-columns: 1fr 1fr; } }
 .feature { background: var(--surface); padding: 26px; min-width: 0; }
@@ -200,7 +207,13 @@ video { width: 100%; display: block; aspect-ratio: 16/9; background: #05070a; }
 .contact-card { margin-top: 28px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 32px; display: flex; flex-direction: column; gap: 18px; }
 .contact-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .contact-email { font-family: ui-monospace, "JetBrains Mono", monospace; font-size: 15px; background: var(--bg-alt); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; min-width: 0; word-break: break-all; }
-.copy-btn { background: var(--navy); color: var(--bg); border: none; border-radius: 8px; padding: 10px 16px; font-size: 14px; font-weight: 700; font-family: inherit; cursor: pointer; flex: 0 0 auto; }
+.copy-btn {
+  background: var(--navy); color: var(--bg); border: none; border-radius: 8px; padding: 10px 16px;
+  min-height: 44px; font-size: 14px; font-weight: 700; font-family: inherit; cursor: pointer; flex: 0 0 auto;
+  transition: opacity 0.15s ease;
+}
+.copy-btn:hover { opacity: 0.88; }
+.copy-btn:active { opacity: 0.76; }
 .copy-btn[data-copied="true"] { background: var(--success); }
 
 /* ---- footer ---- */

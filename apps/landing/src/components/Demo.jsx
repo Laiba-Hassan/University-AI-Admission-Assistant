@@ -4,7 +4,7 @@ export function Demo() {
       <div className="kicker">See it working</div>
       <h2 className="section-title">A real conversation, a real dashboard</h2>
       <p className="section-lead">
-        No staged mockups &mdash; this is the actual product: a student asking about fees and scholarships, the
+        No staged mockups: this is the actual product, a student asking about fees and scholarships, the
         assistant answering with a verified figure, and the staff side that makes it trustworthy.
       </p>
       <div className="video-frame">

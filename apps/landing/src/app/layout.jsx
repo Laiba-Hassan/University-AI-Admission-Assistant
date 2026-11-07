@@ -16,7 +16,7 @@ const workSans = Work_Sans({
 
 export const metadata = {
   title: "Enrollium",
-  description: "AI admissions assistant for universities — every fee, deadline and scholarship answer verified against a staff-approved record.",
+  description: "AI admissions assistant for universities: every fee, deadline and scholarship answer verified against a staff-approved record.",
   icons: {
     icon: "/assets/favicon.png",
   },

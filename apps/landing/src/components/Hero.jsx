@@ -4,15 +4,14 @@ export function Hero({ onRequestDemo }) {
   return (
     <section className="hero">
       <div className="hero-bg" aria-hidden="true">
-        <img src="/assets/campus/pk3.jpg" alt="" />
+        <img src="/assets/campus/pk3.jpg" alt="" fetchPriority="high" />
       </div>
       <div className="wrap hero-inner">
         <div>
-          <div className="eyebrow"><span className="dot" /> AI admissions assistant for universities</div>
           <h1>Every answer, verified. Never guessed.</h1>
           <p className="sub">
-            Enrollium answers fee, deadline, eligibility and scholarship questions for your applicants
-            &mdash; in English, Roman Urdu, or Urdu &mdash; and never states a figure your staff haven&rsquo;t approved.
+            Enrollium answers fee, deadline, eligibility and scholarship questions for your applicants,
+            in English, Roman Urdu, or Urdu, and never states a figure your staff haven&rsquo;t approved.
           </p>
           <div className="ctas">
             <a className="btn btn-primary" href="#demo">Watch the demo</a>

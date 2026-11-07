@@ -24,8 +24,8 @@ export function Contact() {
       <div className="kicker">Get in touch</div>
       <h2 className="section-title">Request a live walkthrough</h2>
       <p className="section-lead">
-        I&rsquo;m happy to walk any university through the full product &mdash; the assistant, the dashboard, and
-        the knowledge base &mdash; in a short call.
+        I&rsquo;m happy to walk any university through the full product (the assistant, the dashboard, and
+        the knowledge base) in a short call.
       </p>
       <div className="contact-card">
         <div className="contact-row">
