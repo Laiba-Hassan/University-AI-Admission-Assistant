@@ -73,12 +73,25 @@ nav.topbar .inner { display: flex; align-items: center; justify-content: space-b
 /* Below 420px the bar has no room for brand + full CTA + toggle together -- the CTA moves into the
    dropdown sheet instead (nav-menu-cta below), so the bar itself only carries brand + toggle. */
 @media (max-width: 419px) { .nav-cta-wide { display: none; } }
+/* A dimmed backdrop behind the panel -- without it the menu just reads as another block of inline
+   page content instead of a floating overlay sitting on top of the hero. Fixed so it covers the
+   whole viewport regardless of scroll position, and closes the menu when tapped. */
+.nav-menu-backdrop {
+  position: fixed; inset: 0; z-index: 25;
+  background: color-mix(in srgb, black 55%, transparent);
+  animation: nav-menu-fade 0.18s ease;
+}
+@keyframes nav-menu-fade { from { opacity: 0; } to { opacity: 1; } }
 .nav-menu-sheet {
+  position: absolute; top: 100%; left: 0; right: 0; z-index: 30;
   display: flex; flex-direction: column; border-top: 1px solid var(--border);
   background: var(--surface);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+  animation: nav-menu-slide 0.2s ease;
 }
+@keyframes nav-menu-slide { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
 .nav-menu-sheet a {
-  padding: 14px 20px; font-size: 15px; font-weight: 600; color: var(--ink-2); border-bottom: 1px solid var(--border);
+  padding: 16px 20px; font-size: 16px; font-weight: 600; color: var(--ink-2); border-bottom: 1px solid var(--border);
   min-height: 44px; display: flex; align-items: center;
 }
 .nav-menu-sheet a:hover { color: var(--ink); background: var(--bg-alt); }
@@ -87,7 +100,7 @@ nav.topbar .inner { display: flex; align-items: center; justify-content: space-b
   background: var(--navy); color: var(--bg); font-size: 14px; font-weight: 700; font-family: inherit; cursor: pointer;
 }
 @media (max-width: 419px) { .nav-menu-cta { display: block; } }
-@media (min-width: 760px) { .nav-menu-sheet { display: none; } }
+@media (min-width: 760px) { .nav-menu-sheet, .nav-menu-backdrop { display: none; } }
 
 /* ---- hero ---- */
 .hero { background: var(--bg-alt); border-bottom: 1px solid var(--border); position: relative; overflow: hidden; }

@@ -38,10 +38,13 @@ export function Nav({ onRequestDemo }) {
         </button>
       </div>
       {menuOpen && (
-        <div className="nav-menu-sheet">
-          {LINKS.map((l) => <a key={l.href} href={l.href} onClick={closeAnd(() => {})}>{l.label}</a>)}
-          <button className="nav-menu-cta" onClick={closeAnd(onRequestDemo)}>Request a demo</button>
-        </div>
+        <>
+          <div className="nav-menu-backdrop" onClick={() => setMenuOpen(false)} aria-hidden="true" />
+          <div className="nav-menu-sheet">
+            {LINKS.map((l) => <a key={l.href} href={l.href} onClick={closeAnd(() => {})}>{l.label}</a>)}
+            <button className="nav-menu-cta" onClick={closeAnd(onRequestDemo)}>Request a demo</button>
+          </div>
+        </>
       )}
     </nav>
   );
