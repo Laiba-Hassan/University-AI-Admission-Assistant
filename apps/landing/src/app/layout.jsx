@@ -22,6 +22,15 @@ export const metadata = {
   },
 };
 
+// Next.js does not inject a default viewport meta tag -- without this, mobile browsers render the
+// page at a desktop-width virtual viewport (~980px) and scale it down, which is why the nav showed
+// its full desktop link row instead of the mobile menu on a real phone.
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#c15f3c",
+};
+
 export default function RootLayout({ children }) {
   return (
     <html lang="en" className={`${spectral.variable} ${workSans.variable}`}>
