@@ -26,6 +26,8 @@
     "web:build": "pnpm --filter @uaa/web build",
     "dashboard:dev": "pnpm --filter @uaa/dashboard dev",
     "dashboard:build": "pnpm --filter @uaa/dashboard build",
+    "landing:dev": "pnpm --filter @uaa/landing dev",
+    "landing:build": "pnpm --filter @uaa/landing build",
     "load-test": "pnpm --filter @uaa/api load-test"
   },
   "devDependencies": {

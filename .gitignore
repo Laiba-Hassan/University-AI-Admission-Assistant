@@ -17,6 +17,8 @@ apps/web/.next/
 apps/web/next-env.d.ts
 apps/dashboard/.next/
 apps/dashboard/next-env.d.ts
+apps/landing/.next/
+apps/landing/next-env.d.ts
 apps/desktop/dist/
 apps/desktop/release/
 *.tsbuildinfo
