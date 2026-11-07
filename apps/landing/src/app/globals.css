@@ -97,6 +97,14 @@ nav.topbar .inner { display: flex; align-items: center; justify-content: space-b
   content: ""; position: absolute; inset: 0;
   background: linear-gradient(180deg, var(--bg-alt) 0%, color-mix(in srgb, var(--bg-alt) 35%, transparent) 46%, var(--bg-alt) 100%);
 }
+/* Below 860px the hero stacks to one column and gets much taller than it is wide -- object-fit: cover on
+   the full-height background would zoom the (landscape) photo so far in that only an unrecognizable
+   vertical sliver shows. Capping the photo band to a fixed height keeps its real crop/composition intact;
+   the hero's own flat --bg-alt (which the gradient already fades into) carries the rest of the section. */
+@media (max-width: 859px) {
+  .hero-bg { bottom: auto; height: 480px; }
+  .hero-bg img { opacity: 0.4; }
+}
 .hero-inner { position: relative; z-index: 1; padding-block: 68px 76px; display: grid; grid-template-columns: 1fr; gap: 48px; align-items: center; }
 @media (min-width: 860px) { .hero-inner { grid-template-columns: 1.1fr 0.9fr; gap: 40px; } }
 .eyebrow {
