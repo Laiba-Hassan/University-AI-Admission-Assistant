@@ -19,8 +19,8 @@ export const metadata = {
   description: "Admissions AI dashboard",
   manifest: "/manifest.json",
   icons: {
-    icon: "/icon-192.png",
-    apple: "/icon-192.png"
+    icon: [{ url: "/favicon-32.png?v=2", sizes: "32x32", type: "image/png" }, { url: "/icon-192.png?v=2", sizes: "192x192", type: "image/png" }],
+    apple: "/icon-192.png?v=2"
   }
 };
 export const viewport = {

@@ -7,12 +7,15 @@ import { config } from "./config.js";
 // sent" means for their flow.
 export const emailConfigured = () => Boolean(config.RESEND_API_KEY);
 
-export async function sendEmail(to: string, subject: string, html: string): Promise<boolean> {
+export async function sendEmail(to: string, subject: string, html: string, replyTo?: string): Promise<boolean> {
   if (!config.RESEND_API_KEY) return false;
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { authorization: `Bearer ${config.RESEND_API_KEY}`, "content-type": "application/json" },
-    body: JSON.stringify({ from: config.SMTP_FROM ?? "Enrollium <onboarding@resend.dev>", to, subject, html }),
+    body: JSON.stringify({
+      from: config.SMTP_FROM ?? "Enrollium <onboarding@resend.dev>", to, subject, html,
+      ...(replyTo ? { reply_to: replyTo } : {}),
+    }),
   });
   // Resend's error responses (invalid key, unverified recipient on the free tier, bad "from" address) are
   // otherwise invisible -- the caller only ever sees a bare `false` and falls back to the copyable link, with

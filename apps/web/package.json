@@ -9,13 +9,13 @@
   },
   "dependencies": {
     "marked": "^18.0.14",
-    "next": "15",
+    "next": "^15.5.28",
     "react": "19",
     "react-dom": "19"
   },
   "devDependencies": {
     "autoprefixer": "^10.6.1",
-    "postcss": "^8.5.28",
+    "postcss": "^8.5.32",
     "tailwindcss": "3"
   }
 }

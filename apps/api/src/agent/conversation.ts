@@ -32,6 +32,10 @@ export interface ChatInput {
 export interface FactCard { type: "fee" | "intake"; label: string; value: string; as_of: string | null; stale?: boolean }
 export interface ChatOutput {
   reply: string; status: ChatStatus; language: Detected; conversationId: string | null; messageId: string | null; cards: FactCard[];
+  // The id of the student's own message as stored (or null when none was stored, e.g. "duplicate"/"opted_out").
+  // The widget needs this to mark its own optimistic bubble as already-seen, so the poll loop below doesn't
+  // re-fetch and re-append the very message it just showed live.
+  userMessageId: string | null;
   // The real DB-assigned timestamp of the stored reply (or null when none was stored) -- the widget's poll loop
   // uses this, not the client's own clock, to know what it's already shown and avoid re-fetching/duplicating it.
   timestamp: string | null;
@@ -46,7 +50,7 @@ export const leaks = (reply: string) => reply.includes(CANARY) || LEAK_PATTERNS.
 
 const scriptOf = (l: Detected): Lang => (l === "other" ? "english" : l);
 const defaultProvider = new GeminiProvider();
-const noReply = (status: ChatStatus, conversationId: string | null = null): ChatOutput => ({ reply: "", status, language: "english", conversationId, messageId: null, cards: [], timestamp: null });
+const noReply = (status: ChatStatus, conversationId: string | null = null): ChatOutput => ({ reply: "", status, language: "english", conversationId, messageId: null, userMessageId: null, cards: [], timestamp: null });
 
 /** Upserts the contact and, if the contact already has an open conversation, returns it. Never creates one: the
  * monthly conversation limit must be checked BEFORE a new conversation row exists, not after. */
@@ -124,6 +128,7 @@ export async function handleMessage(input: ChatInput): Promise<ChatOutput> {
        VALUES (current_tenant_id(), $1, 'user', $2, $3, $4, $5, $6) ON CONFLICT (tenant_id, channel_message_id) DO NOTHING RETURNING id`,
       [conv.conversationId, masked, language, input.channelMessageId ?? null, input.contentType ?? "text", input.audioSeconds ?? null]);
     if (!inserted.rowCount) return { blocked: "duplicate" as const, conversationId: conv.conversationId };
+    const userMessageId = inserted.rows[0]!.id as string;
     // Audio minutes count toward tenant limits (PRD 6B): recorded alongside the ordinary message-received event
     // rather than a second usage_events row, so existing per-tenant usage totals already include voice traffic.
     await recordUsage(tx, "message_received", input.channel, input.audioSeconds ? { audio_seconds: input.audioSeconds } : undefined);
@@ -138,14 +143,14 @@ export async function handleMessage(input: ChatInput): Promise<ChatOutput> {
       "SELECT COALESCE(SUM((metadata->>'input_tokens')::int),0) + COALESCE(SUM((metadata->>'output_tokens')::int),0) AS n FROM messages WHERE conversation_id = $1 AND role = 'assistant'", [conv.conversationId])).rows[0].n;
     if (monthlyMessages > tenant.monthly_message_limit) {
       await maybeEmitLimitWarning(tx, "monthly_message");
-      return { blocked: "monthly_message" as const, conversationId: conv.conversationId, language };
+      return { blocked: "monthly_message" as const, conversationId: conv.conversationId, language, userMessageId };
     }
-    if (tokensSoFar >= config.MAX_CONVERSATION_TOKENS) return { blocked: "token_cap" as const, conversationId: conv.conversationId, language };
+    if (tokensSoFar >= config.MAX_CONVERSATION_TOKENS) return { blocked: "token_cap" as const, conversationId: conv.conversationId, language, userMessageId };
 
     const programs = (await tx.query("SELECT code, name FROM programs WHERE status = 'approved' ORDER BY name")).rows;
     const campuses = (await tx.query("SELECT name, city FROM campuses WHERE status = 'approved' ORDER BY name")).rows;
     const fixed = (await tx.query("SELECT key, language, text FROM localized_messages")).rows as { key: string; language: string; text: string }[];
-    return { blocked: undefined, tenant, contactId: conv.contactId, conversationId: conv.conversationId, status: conv.conversationStatus, prior, language, programs, campuses, fixed };
+    return { blocked: undefined, tenant, contactId: conv.contactId, conversationId: conv.conversationId, status: conv.conversationStatus, prior, language, programs, campuses, fixed, userMessageId };
   });
 
   const fixedTextFor = (fixed: { key: string; language: string; text: string }[], language: Detected, key: string) =>
@@ -173,7 +178,7 @@ export async function handleMessage(input: ChatInput): Promise<ChatOutput> {
             "UPDATE unanswered_questions SET count = count + 1, last_seen = now() WHERE lower(question_text) = lower($1) AND status = 'open' RETURNING id", [masked]);
           if (!hit.rowCount) await tx.query("INSERT INTO unanswered_questions (tenant_id, question_text) VALUES (current_tenant_id(), $1)", [masked]);
         });
-        return { reply, status: "limit_reached", language, conversationId: setup.conversationId, messageId: null, cards: [], timestamp: null };
+        return { reply, status: "limit_reached", language, conversationId: setup.conversationId, messageId: null, userMessageId: setup.userMessageId, cards: [], timestamp: null };
       }
     }
   }
@@ -181,7 +186,7 @@ export async function handleMessage(input: ChatInput): Promise<ChatOutput> {
   const fixedText = (key: string) => fixedTextFor(fixed, language, key);
 
   // A staff member has taken over: store the message, stay silent (PRD 6.4 step 5).
-  if (setup.status === "human") return { ...noReply("human", setup.conversationId), language };
+  if (setup.status === "human") return { ...noReply("human", setup.conversationId), language, userMessageId: setup.userMessageId };
 
   // 2. Agent turn. The model sees the ORIGINAL text for this turn (needed to capture a lead), history is masked.
   const history: Content[] = setup.prior.map((m) => ({ role: m.role === "user" ? "user" : "model", parts: [{ text: m.content as string }] }));
@@ -247,7 +252,7 @@ export async function handleMessage(input: ChatInput): Promise<ChatOutput> {
   });
 
   return {
-    reply, status, language, conversationId: setup.conversationId, messageId, cards, timestamp: messageTimestamp,
+    reply, status, language, conversationId: setup.conversationId, messageId, userMessageId: setup.userMessageId, cards, timestamp: messageTimestamp,
     debug: { toolTrace: run.toolTrace, verdict, flags: run.flags, leak, model: run.model, inputTokens: run.inputTokens, outputTokens: run.outputTokens, unanswered },
   };
 }

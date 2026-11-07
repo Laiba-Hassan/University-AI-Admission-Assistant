@@ -382,7 +382,7 @@ staffRouter.get("/import/drafts", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-const Review = z.object({ action: z.enum(["accept", "reject"]), payload: z.record(z.unknown()).optional() });
+const Review = z.object({ action: z.enum(["accept", "reject"]), payload: z.record(z.string(), z.unknown()).optional() });
 staffRouter.post("/import/drafts/:id/review", requireRole("admin", "editor"), async (req, res, next) => {
   if (!UUID.test(req.params.id!)) return res.status(404).json({ error: "not_found" });
   const body = Review.safeParse(req.body);
@@ -557,9 +557,11 @@ staffRouter.post("/settings/team/invite", requireRole("admin"), async (req, res,
   if (!body.success) return res.status(400).json({ error: "invalid_request" });
   try {
     const token = randomBytes(24).toString("hex");
-    const tenantName = await withTenant(tenantOf(req), async (tx) => {
+    const { tenantName, adminEmail } = await withTenant(tenantOf(req), async (tx) => {
       await inviteStaff(tx, body.data.email, body.data.role, createHash("sha256").update(token).digest("hex"), req.tenant!.authUserId!);
-      return (await tx.query(`SELECT name FROM tenants`)).rows[0]?.name as string | undefined;
+      const name = (await tx.query(`SELECT name FROM tenants`)).rows[0]?.name as string | undefined;
+      const admin = (await tx.query(`SELECT email FROM tenant_users WHERE auth_user_id = $1`, [req.tenant!.authUserId])).rows[0] as { email: string } | undefined;
+      return { tenantName: name, adminEmail: admin?.email };
     });
     // The raw token only ever exists here and in the email below, exactly like a password-reset link -- the DB
     // keeps only its hash (staff_invites.token_hash), so accepting an invite later verifies without storing the
@@ -570,7 +572,7 @@ staffRouter.post("/settings/team/invite", requireRole("admin"), async (req, res,
     const emailed = origin ? await sendEmail(body.data.email, `You're invited to join ${tenantName ?? "Enrollium"}`,
       `<p>You've been invited to join <strong>${tenantName ?? "the team"}</strong> on Enrollium as a <strong>${body.data.role}</strong>.</p>
        <p><a href="${link}">Accept the invite</a> (expires in 7 days).</p>
-       <p>If the link doesn't work, copy this into your browser:<br>${link}</p>`) : false;
+       <p>If the link doesn't work, copy this into your browser:<br>${link}</p>`, adminEmail) : false;
     res.status(201).json({ invite_token: token, emailed });
   } catch (err) { next(err); }
 });

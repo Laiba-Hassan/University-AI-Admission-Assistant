@@ -251,6 +251,10 @@ function App() {
     // loop's "since" cursor against real clock skew and double-counted the very message just shown live.
     if (body.timestamp) lastSeenRef.current = body.timestamp;
     if (body.message_id) seenIdsRef.current.add(body.message_id);
+    // Mark the student's own message (already shown optimistically in send()) as seen too, otherwise the poll
+    // loop below can re-fetch it -- its row's server timestamp can land after the client-clock cursor send()
+    // set, especially under clock skew or request latency -- and append a second, duplicate user bubble.
+    if (body.user_message_id) seenIdsRef.current.add(body.user_message_id);
     if (body.status === "human") return; // staff has taken over; stay silent
     const botId = uid();
     setMessages(m => [...m, {

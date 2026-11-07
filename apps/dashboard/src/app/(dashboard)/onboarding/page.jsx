@@ -50,7 +50,7 @@ export default function OnboardingPage() {
   }, {
     done: status.channels_done,
     title: "Connect a channel",
-    body: "Set up the web widget (WhatsApp is optional and can be added later).",
+    body: "Set up the web widget.",
     href: "/settings/channels",
     cta: "Go to Channels"
   }];
@@ -85,7 +85,7 @@ export default function OnboardingPage() {
             <span className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${status.knowledge_done ? "chip-approved" : "chip-neutral"}`}>{status.knowledge_done ? "✓" : 4}</span>
             <div className="min-w-0 flex-1">
               <div className="text-sm font-semibold text-ink">Test it</div>
-              <p className="mt-0.5 text-xs text-ink-2">Ask your real assistant a real question, against your real knowledge base -- the same agent the widget and WhatsApp use.</p>
+              <p className="mt-0.5 text-xs text-ink-2">Ask your real assistant a real question, against your real knowledge base -- the same agent the widget uses.</p>
               <TestChat disabled={!status.knowledge_done} />
             </div>
           </div>

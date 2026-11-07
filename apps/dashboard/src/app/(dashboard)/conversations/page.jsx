@@ -39,7 +39,6 @@ export default function ConversationsPage() {
         <select value={channel} onChange={e => setChannel(e.target.value)} className="rounded-lg border border-line bg-surface px-3 py-1.5 text-xs">
           <option value="">All channels</option>
           <option value="web">Web</option>
-          <option value="whatsapp">WhatsApp</option>
         </select>
         <select value={language} onChange={e => setLanguage(e.target.value)} className="rounded-lg border border-line bg-surface px-3 py-1.5 text-xs">
           <option value="">All languages</option>

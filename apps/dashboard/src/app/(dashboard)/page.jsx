@@ -73,7 +73,6 @@ export default function OverviewPage() {
           <h1 className="font-heading text-[26px] font-semibold text-ink">Overview</h1>
           <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-ink-2">
             {channels?.web_widget && <ChannelDot label="Web" live={channels.web_widget.status === "active"} />}
-            {channels?.whatsapp && <ChannelDot label="WhatsApp" live={channels.whatsapp.status === "active"} />}
             {syncedAt && <span className="text-muted">Synced {relativeTime(syncedAt)}</span>}
             {onboarding && !onboarding.completed && <Link href="/onboarding" className="font-semibold text-accent hover:underline">Finish tenant setup →</Link>}
           </div>

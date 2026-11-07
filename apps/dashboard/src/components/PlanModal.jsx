@@ -15,9 +15,9 @@ const PLANS = [{
 }, {
   id: "growth",
   name: "Growth",
-  tagline: "Web widget + WhatsApp",
+  tagline: "For growing admissions teams",
   price: "$99",
-  features: ["Everything in Starter", "WhatsApp Business connection", "Two-way WhatsApp staff replies"]
+  features: ["Everything in Starter", "Higher usage limits", "Priority support"]
 }];
 
 /** Plan selection + real card capture, used both by Onboarding's "Go live" and the profile menu's "Update plan".

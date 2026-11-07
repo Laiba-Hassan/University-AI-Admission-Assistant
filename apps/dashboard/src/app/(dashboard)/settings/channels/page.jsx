@@ -14,16 +14,8 @@ export default function ChannelsTab() {
   };
   useEffect(load, []);
   if (!data) return <p className="text-sm text-muted">Loading…</p>;
-  const waConnected = data.whatsapp?.status === "active";
   return <div className="divide-y divide-line">
       <div className="pb-4">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold uppercase tracking-wide text-muted">Your plan</span>
-          <span className={`chip ${data.whatsapp_enabled ? "chip-approved" : "chip-neutral"}`}>{data.whatsapp_enabled ? "Web + WhatsApp" : "Web only"}</span>
-        </div>
-        {!data.whatsapp_enabled && <p className="mt-1 text-xs text-muted">Reach out to us to add WhatsApp to your plan.</p>}
-      </div>
-      <div className="pb-4 pt-4">
         <div className="flex items-center justify-between">
           <div>
             <div className="text-sm font-semibold text-ink">🌐 Web widget</div>
@@ -32,19 +24,6 @@ export default function ChannelsTab() {
           {data.web_widget && <StatusChip status={data.web_widget.status === "active" ? "closed" : "open"} />}
         </div>
         {data.web_widget ? <WidgetKeyPanel widget={data.web_widget} onDone={load} /> : <WidgetSetupForm onDone={load} />}
-      </div>
-      <div className="pt-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-sm font-semibold text-ink">💬 WhatsApp</div>
-            {waConnected ? <div className="text-xs text-ink-2">
-                {data.whatsapp.display_number ?? data.whatsapp.phone_number_id} · template: {data.whatsapp.template_status?.split(":")[0] ?? "—"}
-              </div> : <div className="text-xs text-muted">Not connected yet.</div>}
-          </div>
-          <StatusChip status={waConnected ? "closed" : "open"} />
-        </div>
-
-        {waConnected ? <DisconnectButton onDone={load} /> : data.whatsapp_enabled ? <ConnectForm onDone={load} /> : <UpgradePrompt />}
       </div>
     </div>;
 }
