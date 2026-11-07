@@ -28,7 +28,10 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       fetch(event.request)
         .then((res) => {
-          caches.open(SHELL_CACHE).then((cache) => cache.put(event.request, res.clone()));
+          // Clone BEFORE returning: once res is handed back to the page, its body can be read at any time,
+          // and clone() throws ("Response body is already used") if the body is already disturbed by then.
+          const resForCache = res.clone();
+          caches.open(SHELL_CACHE).then((cache) => cache.put(event.request, resForCache));
           return res;
         })
         .catch(() => caches.match(event.request)),
