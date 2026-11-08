@@ -50,7 +50,10 @@ img { max-width: 100%; display: block; }
 /* ---- nav ---- */
 nav.topbar {
   position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20;
-  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  /* rgba, not color-mix(): see the note on .nav-menu-backdrop -- a browser that silently drops an
+     unsupported color-mix() value leaves this with no background at all. --surface is #242220,
+     fixed since the theme is dark-only (no toggle), so hardcoding the equivalent is safe. */
+  background: rgba(36, 34, 32, 0.92);
   backdrop-filter: blur(10px); border-bottom: 1px solid var(--border);
 }
 nav.topbar .inner { display: flex; align-items: center; justify-content: space-between; padding-block: 14px; gap: 16px; }
@@ -82,7 +85,10 @@ nav.topbar .inner { display: flex; align-items: center; justify-content: space-b
    whole viewport regardless of scroll position, and closes the menu when tapped. */
 .nav-menu-backdrop {
   position: fixed; inset: 0; z-index: 25;
-  background: color-mix(in srgb, black 55%, transparent);
+  /* Plain rgba, not color-mix(): some mobile browsers don't support color-mix(), and when it fails
+     the background silently renders as nothing rather than falling back, leaving the backdrop fully
+     invisible (confirmed on a real device) with the page showing through undimmed. */
+  background: rgba(0, 0, 0, 0.55);
   animation: nav-menu-fade 0.18s ease;
 }
 @keyframes nav-menu-fade { from { opacity: 0; } to { opacity: 1; } }
@@ -112,7 +118,8 @@ nav.topbar .inner { display: flex; align-items: center; justify-content: space-b
 .hero-bg img { width: 100%; height: 100%; object-fit: cover; filter: grayscale(0.3) brightness(1.05); opacity: 0.28; }
 .hero-bg::after {
   content: ""; position: absolute; inset: 0;
-  background: linear-gradient(180deg, var(--bg-alt) 0%, color-mix(in srgb, var(--bg-alt) 35%, transparent) 46%, var(--bg-alt) 100%);
+  /* rgba, not color-mix(): same reasoning as nav.topbar above. --bg-alt is #141210. */
+  background: linear-gradient(180deg, var(--bg-alt) 0%, rgba(20, 18, 16, 0.35) 46%, var(--bg-alt) 100%);
 }
 /* Below 860px the hero stacks to one column and gets much taller than it is wide -- object-fit: cover on
    the full-height background would zoom the (landscape) photo so far in that only an unrecognizable
