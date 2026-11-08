@@ -78,39 +78,49 @@ nav.topbar .inner { display: flex; align-items: center; justify-content: space-b
 .nav-menu-toggle:active { background: var(--border); }
 @media (min-width: 760px) { .nav-menu-toggle { display: none; } }
 /* Below 420px the bar has no room for brand + full CTA + toggle together -- the CTA moves into the
-   dropdown sheet instead (nav-menu-cta below), so the bar itself only carries brand + toggle. */
+   full-screen menu instead (nav-menu-fullscreen-cta below), so the bar itself only carries brand + toggle. */
 @media (max-width: 419px) { .nav-cta-wide { display: none; } }
-/* A dimmed backdrop behind the panel -- without it the menu just reads as another block of inline
-   page content instead of a floating overlay sitting on top of the hero. Fixed so it covers the
-   whole viewport regardless of scroll position, and closes the menu when tapped. */
-.nav-menu-backdrop {
-  position: fixed; inset: 0; z-index: 25;
-  /* Plain rgba, not color-mix(): some mobile browsers don't support color-mix(), and when it fails
-     the background silently renders as nothing rather than falling back, leaving the backdrop fully
-     invisible (confirmed on a real device) with the page showing through undimmed. */
-  background: rgba(0, 0, 0, 0.55);
-  animation: nav-menu-fade 0.18s ease;
+
+/* Full-screen menu takeover: solid background, covers the entire viewport, no page content visible
+   behind it at all -- there's nothing for it to visually "mix up" with. Fixed to the viewport, not
+   nested under anything with backdrop-filter/transform (those create a containing block for
+   position:fixed and trap it to that ancestor's own box instead of the screen -- confirmed this bit
+   an earlier dimmed-backdrop version of this menu). */
+.nav-menu-fullscreen {
+  position: fixed; inset: 0; z-index: 50;
+  background: var(--bg); display: flex; flex-direction: column;
+  animation: nav-menu-fade 0.15s ease;
 }
 @keyframes nav-menu-fade { from { opacity: 0; } to { opacity: 1; } }
-.nav-menu-sheet {
-  position: absolute; top: 100%; left: 0; right: 0; z-index: 30;
-  display: flex; flex-direction: column; border-top: 1px solid var(--border);
-  background: var(--surface);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
-  animation: nav-menu-slide 0.2s ease;
+.nav-menu-fullscreen-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 20px; border-bottom: 1px solid var(--border);
+  font-family: var(--font-heading), Georgia, serif; font-weight: 700; font-size: 15px;
+  letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted);
 }
-@keyframes nav-menu-slide { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
-.nav-menu-sheet a {
-  padding: 16px 20px; font-size: 16px; font-weight: 600; color: var(--ink-2); border-bottom: 1px solid var(--border);
-  min-height: 44px; display: flex; align-items: center;
+.nav-menu-close {
+  display: flex; align-items: center; justify-content: center; width: 44px; height: 44px;
+  background: none; border: 1px solid var(--border); border-radius: 8px; color: var(--ink);
+  cursor: pointer; transition: background-color 0.15s ease;
 }
-.nav-menu-sheet a:hover { color: var(--ink); background: var(--bg-alt); }
-.nav-menu-cta {
-  display: none; margin: 14px 20px; padding: 12px; border: none; border-radius: 8px;
-  background: var(--navy); color: var(--bg); font-size: 14px; font-weight: 700; font-family: inherit; cursor: pointer;
+.nav-menu-close:hover { background: var(--bg-alt); }
+.nav-menu-close:active { background: var(--border); }
+.nav-menu-fullscreen-links { display: flex; flex-direction: column; overflow-y: auto; }
+.nav-menu-fullscreen-links a {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 20px; min-height: 44px; font-size: 17px; font-weight: 600;
+  color: var(--ink); border-bottom: 1px solid var(--border);
 }
-@media (max-width: 419px) { .nav-menu-cta { display: block; } }
-@media (min-width: 760px) { .nav-menu-sheet, .nav-menu-backdrop { display: none; } }
+.nav-menu-fullscreen-links a:hover { background: var(--bg-alt); }
+.nav-menu-fullscreen-links a svg { color: var(--muted); flex: 0 0 auto; }
+.nav-menu-fullscreen-cta {
+  margin: 16px 20px calc(16px + env(safe-area-inset-bottom, 0px)); padding: 13px; min-height: 44px;
+  border: none; border-radius: 8px; background: var(--navy); color: var(--bg);
+  font-size: 15px; font-weight: 700; font-family: inherit; cursor: pointer; transition: opacity 0.15s ease;
+}
+.nav-menu-fullscreen-cta:hover { opacity: 0.88; }
+.nav-menu-fullscreen-cta:active { opacity: 0.76; }
+@media (min-width: 760px) { .nav-menu-fullscreen { display: none; } }
 
 /* ---- hero ---- */
 .hero { background: var(--bg-alt); border-bottom: 1px solid var(--border); position: relative; overflow: hidden; }
