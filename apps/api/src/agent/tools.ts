@@ -50,6 +50,7 @@ export const TOOL_DECLARATIONS: ToolDecl[] = [
       properties: {
         name: { type: "string" },
         contact: { type: "string", description: "Phone number or email exactly as the student gave it." },
+        alt_contact: { type: "string", description: "If the student gave BOTH a phone number and an email, the other one (whichever isn't in `contact`), exactly as given. Omit if they only gave one." },
         program_interest: { type: "string" },
         consent: { type: "boolean", description: "True only if the student explicitly agreed to be contacted by admissions." },
       },
@@ -121,16 +122,17 @@ export async function runTool(name: string, args: Record<string, unknown>, ctx: 
         if (!contact) return { kind: "lead", result: { status: "contact_required" } };
         const name = str(args.name, 120) ?? null;
         const interest = str(args.program_interest, 120) ?? null;
+        const altContact = str(args.alt_contact, 120) ?? null;
         const saved = await withTenant(ctx.tenantId, async (tx) => {
           // De-duplicate by contact within the tenant (RLS scopes the lookup).
           const existing = (await tx.query("SELECT id FROM leads WHERE contact = $1 LIMIT 1", [contact])).rows[0];
           if (existing) {
-            await tx.query("UPDATE leads SET name = COALESCE($2, name), program_interest = COALESCE($3, program_interest) WHERE id = $1", [existing.id, name, interest]);
+            await tx.query("UPDATE leads SET name = COALESCE($2, name), program_interest = COALESCE($3, program_interest), alt_contact = COALESCE($4, alt_contact) WHERE id = $1", [existing.id, name, interest, altContact]);
             return { id: existing.id as string, created: false };
           }
           const id = (await tx.query(
-            `INSERT INTO leads (tenant_id, contact_id, name, contact, program_interest, source, consent) VALUES (current_tenant_id(), $1, $2, $3, $4, $5, true) RETURNING id`,
-            [ctx.contactId, name, contact, interest, ctx.channel])).rows[0].id as string;
+            `INSERT INTO leads (tenant_id, contact_id, name, contact, alt_contact, program_interest, source, consent) VALUES (current_tenant_id(), $1, $2, $3, $4, $5, $6, true) RETURNING id`,
+            [ctx.contactId, name, contact, altContact, interest, ctx.channel])).rows[0].id as string;
           // Outbox payload deliberately carries no name or phone number (PRD Section 8/11).
           await tx.query("INSERT INTO event_outbox (tenant_id, event_type, payload) VALUES (current_tenant_id(), 'lead_created', $1)", [JSON.stringify({ lead_id: id })]);
           return { id, created: true };

@@ -80,7 +80,12 @@ export default function LeadsPage() {
             {leads?.length === 0 && <tr><td className="px-4 py-4 text-muted" colSpan={8}>No leads match these filters.</td></tr>}
             {leads?.map(l => <tr key={l.id}>
                 <td className="px-4 py-3 font-medium text-ink">{l.name ?? "—"}</td>
-                <td className="px-4 py-3 text-ink-2"><ContactCell contact={l.contact} /></td>
+                <td className="px-4 py-3 text-ink-2">
+                  <div className="flex flex-col gap-1">
+                    <ContactCell contact={l.contact} />
+                    {l.alt_contact && <ContactCell contact={l.alt_contact} />}
+                  </div>
+                </td>
                 <td className="px-4 py-3 text-ink-2">{l.program_interest ?? "—"}</td>
                 <td className="px-4 py-3 text-ink-2">{l.source ?? "—"}</td>
                 <td className="px-4 py-3">
