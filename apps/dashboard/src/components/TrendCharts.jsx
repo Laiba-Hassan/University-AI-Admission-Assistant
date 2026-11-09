@@ -17,10 +17,16 @@ export function VolumeTrendChart({
   points
 }) {
   if (points.length === 0) return <Empty />;
-  const x = i => PAD + i / Math.max(1, points.length - 1) * (W - PAD * 2);
+  // A single real data point has nowhere to draw a line TO -- "M x y" alone paints nothing. Rather than a lone
+  // dot, treat it as a rise from 0 (the chart's left edge, before this tenant had any activity) up to today's
+  // real value at the right edge: an honest "here's where we started, here's where we are" line, not fake data.
+  const single = points.length === 1;
+  const x = i => single ? PAD + i * (W - PAD * 2) : PAD + i / Math.max(1, points.length - 1) * (W - PAD * 2);
   const y = scale(points.flatMap(p => [p.conversations, p.leads]));
-  const line = key => points.map((p, i) => `${i === 0 ? "M" : "L"} ${x(i)} ${y(p[key])}`).join(" ");
-  const area = key => `${line(key)} L ${x(points.length - 1)} ${H - PAD} L ${x(0)} ${H - PAD} Z`;
+  const line = key => single
+    ? `M ${x(0)} ${y(0)} L ${x(1)} ${y(points[0][key])}`
+    : points.map((p, i) => `${i === 0 ? "M" : "L"} ${x(i)} ${y(p[key])}`).join(" ");
+  const area = key => `${line(key)} L ${single ? x(1) : x(points.length - 1)} ${H - PAD} L ${x(0)} ${H - PAD} Z`;
   const total = key => points.reduce((s, p) => s + p[key], 0);
   return <div>
       <div className="flex items-baseline justify-between">
@@ -42,11 +48,11 @@ export function VolumeTrendChart({
         <path d={area("leads")} fill="url(#volFillOrange)" stroke="none" />
         <path d={line("conversations")} fill="none" stroke="var(--series-blue)" strokeWidth="2" />
         <path d={line("leads")} fill="none" stroke="var(--series-orange)" strokeWidth="2" />
-        {/* A single week has nothing for "M x y" (no "L" segment) to draw -- an "M"-only path is invisible, so
-           the whole chart looked empty on day one. A dot for each series makes that first week visible too. */}
-        {points.length === 1 && <>
-            <circle cx={x(0)} cy={y(points[0].conversations)} r="3" fill="var(--series-blue)" />
-            <circle cx={x(0)} cy={y(points[0].leads)} r="3" fill="var(--series-orange)" />
+        {/* Marks today's real value at the end of the rise-from-zero line above, so it still reads as "the
+           current point", not just where the line happens to stop. */}
+        {single && <>
+            <circle cx={x(1)} cy={y(points[0].conversations)} r="3" fill="var(--series-blue)" />
+            <circle cx={x(1)} cy={y(points[0].leads)} r="3" fill="var(--series-orange)" />
           </>}
       </svg>
       <div className="flex items-baseline justify-between">
