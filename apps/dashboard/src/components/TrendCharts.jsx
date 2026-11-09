@@ -48,12 +48,23 @@ export function VolumeTrendChart({
         <path d={area("leads")} fill="url(#volFillOrange)" stroke="none" />
         <path d={line("conversations")} fill="none" stroke="var(--series-blue)" strokeWidth="2" />
         <path d={line("leads")} fill="none" stroke="var(--series-orange)" strokeWidth="2" />
-        {/* Marks today's real value at the end of the rise-from-zero line above, so it still reads as "the
-           current point", not just where the line happens to stop. */}
-        {single && <>
-            <circle cx={x(1)} cy={y(points[0].conversations)} r="3" fill="var(--series-blue)" />
-            <circle cx={x(1)} cy={y(points[0].leads)} r="3" fill="var(--series-orange)" />
-          </>}
+        {/* A hoverable marker at every real data point for both series: a small visible dot plus a larger
+           invisible hit-circle (easier to land the cursor on), each carrying a native <title> tooltip with the
+           week and exact value. For a single point, this also marks today's real value at the line's end. */}
+        {(single ? [points[0]] : points).map((p, idx) => {
+        const i = single ? 1 : idx;
+        const weekLabel = fmtWeek(p.week);
+        return <g key={p.week}>
+              <circle cx={x(i)} cy={y(p.conversations)} r="8" fill="transparent" className="cursor-pointer">
+                <title>{`${weekLabel} — Conversations: ${p.conversations}`}</title>
+              </circle>
+              <circle cx={x(i)} cy={y(p.conversations)} r="3" fill="var(--series-blue)" />
+              <circle cx={x(i)} cy={y(p.leads)} r="8" fill="transparent" className="cursor-pointer">
+                <title>{`${weekLabel} — Leads captured: ${p.leads}`}</title>
+              </circle>
+              <circle cx={x(i)} cy={y(p.leads)} r="3" fill="var(--series-orange)" />
+            </g>;
+      })}
       </svg>
       <div className="flex items-baseline justify-between">
         <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">Leads captured</span>
@@ -93,6 +104,7 @@ export function ResolutionChart({
         {points.map((p, i) => {
         const cx = PAD + (i + 0.5) * ((W - PAD * 2) / points.length);
         const base = H - PAD;
+        const weekLabel = fmtWeek(p.week);
         let offset = 0;
         const bars = RESOLUTION_SERIES.map(s => {
           const value = valueOf(p, s);
@@ -101,10 +113,15 @@ export function ResolutionChart({
           const y = base - offset - h;
           offset += h;
           return <rect key={s.key} x={cx - barW / 2} y={y} width={barW} height={Math.max(h, 1)} fill={s.color} rx="2">
-                <title>{`${s.label}: ${value}`}</title>
+                <title>{`${weekLabel} — ${s.label}: ${value}`}</title>
               </rect>;
         });
-        return <g key={p.week}>
+        return <g key={p.week} className="cursor-pointer">
+              {/* A full-height invisible hit area behind the stack, so hovering anywhere in the column (not just
+                 exactly on a thin segment) shows the week's total breakdown. */}
+              <rect x={cx - barW / 2} y={PAD} width={barW} height={H - PAD * 2} fill="transparent">
+                <title>{`${weekLabel} — Total: ${stackOf(p)} (AI-resolved: ${valueOf(p, RESOLUTION_SERIES[0])}, Escalated: ${valueOf(p, RESOLUTION_SERIES[1])})`}</title>
+              </rect>
               <text x={cx} y={base - offset - 6} textAnchor="middle" fontSize="12" fontWeight="600" fill="var(--ink)">
                 {stackOf(p)}
               </text>
