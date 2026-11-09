@@ -125,15 +125,16 @@ export function ResolutionChart({
 }
 
 /** The dot legend, placed in the Resolution card's header (top-right, next to the title) rather than under the
- * chart, matching the reference. "AI-resolved" is the chart's own namesake distinction (resolved vs escalated)
- * and always shows, even in a period with zero resolved conversations -- otherwise a week where the bot hasn't
- * closed anything yet would show an "Escalated"-only chart with no visible "Resolution" in it at all. The three
- * escalation-source entries are genuinely optional detail, so those stay conditional on actually occurring. */
+ * chart, matching the reference. "AI-resolved" and "Escalated" are the chart's own namesake distinction and
+ * always show, even at zero -- otherwise an early tenant with no closed or escalated conversations yet shows a
+ * legend that doesn't even name what the chart is tracking. Once a specific escalation source actually occurs,
+ * its own entry (AI handed off / Student asked / Staff escalated) replaces the generic "Escalated" one, since
+ * that detail is strictly more informative once there's something to show. */
 export function ResolutionLegend({
   points = []
 }) {
   const sources = RESOLUTION_SERIES.filter(s => s.key !== "resolved" && seriesTotal(points, s.key) > 0);
-  const list = [RESOLUTION_SERIES[0], ...sources];
+  const list = [RESOLUTION_SERIES[0], ...(sources.length ? sources : [{ key: "escalated", label: "Escalated", color: "var(--series-orange)" }])];
   return <div className="flex flex-wrap justify-end gap-x-4 gap-y-1 text-xs text-ink-2">
       {list.map(s => <LegendItem key={s.key} label={s.label} color={s.color} />)}
     </div>;
