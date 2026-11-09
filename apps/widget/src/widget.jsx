@@ -136,11 +136,15 @@ function App() {
       const res = await rpc(`/api/widget/messages?session_id=${encodeURIComponent(sessionId)}&since=${encodeURIComponent(lastSeenRef.current)}`, "GET");
       if (res.status !== 200 || !res.body.messages.length) return;
       lastSeenRef.current = res.body.messages[res.body.messages.length - 1].timestamp;
-      const rows = res.body.messages.filter(r => !seenIdsRef.current.has(r.id));
+      // Never re-add a "user" row from polling: the student's own message is already shown optimistically by
+      // send(), and the previous fix (marking body.user_message_id seen once the chat reply arrives) only closes
+      // this race when the reply returns before the next 6s tick -- the verify-then-reveal pipeline can genuinely
+      // take 20+ seconds, so the poll can still outrun it. Excluding role "user" here is latency-independent.
+      const rows = res.body.messages.filter(r => !seenIdsRef.current.has(r.id) && r.role !== "user");
       if (!rows.length) return;
       rows.forEach(r => seenIdsRef.current.add(r.id));
       setMessages(m => [...m, ...rows.map(toLocalMessage)]);
-      const newReplies = rows.filter(r => r.role !== "user").length;
+      const newReplies = rows.length;
       if (newReplies > 0) tellParent({
         channel: "uaa-widget",
         type: "unread",
