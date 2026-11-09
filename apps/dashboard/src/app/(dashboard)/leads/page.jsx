@@ -81,7 +81,7 @@ export default function LeadsPage() {
             {leads?.map(l => <tr key={l.id}>
                 <td className="px-4 py-3 font-medium text-ink">{l.name ?? "—"}</td>
                 <td className="px-4 py-3 text-ink-2"><PhoneCell phone={l.phone} /></td>
-                <td className="px-4 py-3 text-ink-2">{l.email ? <a href={`mailto:${l.email}`} className="hover:underline">{l.email}</a> : "—"}</td>
+                <td className="px-4 py-3 text-ink-2">{l.email ? <a href={gmailComposeUrl(l)} target="_blank" rel="noopener noreferrer" className="hover:underline">{l.email}</a> : "—"}</td>
                 <td className="px-4 py-3 text-ink-2">{l.program_interest ?? "—"}</td>
                 <td className="px-4 py-3 text-ink-2">{l.source ?? "—"}</td>
                 <td className="px-4 py-3">
@@ -97,6 +97,15 @@ export default function LeadsPage() {
         </table>
       </div>
     </div>;
+}
+// Opens Gmail's own compose screen (not a mailto: link, which depends on the OS's default mail app and may not
+// be Gmail at all) with the lead pre-filled as recipient. The "from" address needs no setting here -- Gmail
+// sends as whichever Google account the staff member is already signed into in that browser tab.
+function gmailComposeUrl(lead) {
+  const subject = lead.program_interest ? `Your inquiry about ${lead.program_interest}` : "Your admissions inquiry";
+  const body = `Hi ${lead.name ?? "there"},\n\n`;
+  const params = new URLSearchParams({ view: "cm", fs: "1", to: lead.email, su: subject, body });
+  return `https://mail.google.com/mail/?${params.toString()}`;
 }
 function PhoneCell({
   phone
