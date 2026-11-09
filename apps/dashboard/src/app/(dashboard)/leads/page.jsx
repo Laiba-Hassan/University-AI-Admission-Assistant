@@ -71,15 +71,16 @@ export default function LeadsPage() {
         <table className="w-full min-w-[720px] text-left text-sm">
           <thead className="border-b border-line text-[11px] uppercase tracking-wide text-muted">
             <tr>
-              <th className="px-4 py-3">Name</th><th className="px-4 py-3">Program interest</th><th className="px-4 py-3">Source</th>
+              <th className="px-4 py-3">Name</th><th className="px-4 py-3">Contact</th><th className="px-4 py-3">Program interest</th><th className="px-4 py-3">Source</th>
               <th className="px-4 py-3">Status</th><th className="px-4 py-3">Consent</th><th className="px-4 py-3">Assigned to</th><th className="px-4 py-3">Created</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
-            {leads === null && <tr><td className="px-4 py-4 text-muted" colSpan={7}>Loading…</td></tr>}
-            {leads?.length === 0 && <tr><td className="px-4 py-4 text-muted" colSpan={7}>No leads match these filters.</td></tr>}
+            {leads === null && <tr><td className="px-4 py-4 text-muted" colSpan={8}>Loading…</td></tr>}
+            {leads?.length === 0 && <tr><td className="px-4 py-4 text-muted" colSpan={8}>No leads match these filters.</td></tr>}
             {leads?.map(l => <tr key={l.id}>
                 <td className="px-4 py-3 font-medium text-ink">{l.name ?? "—"}</td>
+                <td className="px-4 py-3 text-ink-2"><ContactCell contact={l.contact} /></td>
                 <td className="px-4 py-3 text-ink-2">{l.program_interest ?? "—"}</td>
                 <td className="px-4 py-3 text-ink-2">{l.source ?? "—"}</td>
                 <td className="px-4 py-3">
@@ -95,6 +96,21 @@ export default function LeadsPage() {
         </table>
       </div>
     </div>;
+}
+// A lead's "contact" is free text the student typed (phone or email), not a validated/typed field -- this is a
+// display-time heuristic so staff can click to call/text a phone number directly, not a data-model distinction.
+function ContactCell({
+  contact
+}) {
+  if (!contact) return "—";
+  const digits = contact.replace(/[\s()-]/g, "");
+  const isPhone = !contact.includes("@") && /^\+?\d{7,15}$/.test(digits);
+  if (isPhone) return <span className="flex items-center gap-2">
+        <a href={`tel:${digits}`} className="font-semibold text-accent hover:underline">{contact}</a>
+        <a href={`sms:${digits}`} className="text-xs text-ink-2 hover:underline">SMS</a>
+      </span>;
+  if (contact.includes("@")) return <a href={`mailto:${contact}`} className="hover:underline">{contact}</a>;
+  return contact;
 }
 function ExportButton() {
   const [busy, setBusy] = useState(false);
