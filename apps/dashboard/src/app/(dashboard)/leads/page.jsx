@@ -14,6 +14,13 @@ export default function LeadsPage() {
   const [search, setSearch] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  // Clears this staff member's unseen-leads sidebar badge the moment they open this page, however they got
+  // here (sidebar click, direct link, browser back) -- not tied to any particular nav click handler.
+  useEffect(() => {
+    apiFetch("/api/v1/leads/mark-seen", {
+      method: "POST"
+    }).then(() => window.dispatchEvent(new Event("enrollium-leads-seen"))).catch(() => {});
+  }, []);
   const load = () => {
     if (from && to && from > to) return;
     const qs = new URLSearchParams({

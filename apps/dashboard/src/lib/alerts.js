@@ -67,9 +67,13 @@ export function useSidebarCounts(enabled) {
     };
     tick();
     const id = setInterval(tick, 15000);
+    // The Leads page marks itself seen on open (POST /leads/mark-seen) -- without this, the sidebar badge would
+    // sit stale for up to 15s after a staff member just looked at the page that was supposed to clear it.
+    window.addEventListener("enrollium-leads-seen", tick);
     return () => {
       cancelled = true;
       clearInterval(id);
+      window.removeEventListener("enrollium-leads-seen", tick);
     };
   }, [enabled]);
   return counts;

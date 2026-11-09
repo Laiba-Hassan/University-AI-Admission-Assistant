@@ -27,7 +27,8 @@ const NAV = [{
 }, {
   href: "/leads",
   label: "Leads",
-  icon: UserPlus
+  icon: UserPlus,
+  badgeKey: "leads"
 }, {
   href: "/unanswered",
   label: "Unanswered",

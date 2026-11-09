@@ -42,6 +42,12 @@ export function VolumeTrendChart({
         <path d={area("leads")} fill="url(#volFillOrange)" stroke="none" />
         <path d={line("conversations")} fill="none" stroke="var(--series-blue)" strokeWidth="2" />
         <path d={line("leads")} fill="none" stroke="var(--series-orange)" strokeWidth="2" />
+        {/* A single week has nothing for "M x y" (no "L" segment) to draw -- an "M"-only path is invisible, so
+           the whole chart looked empty on day one. A dot for each series makes that first week visible too. */}
+        {points.length === 1 && <>
+            <circle cx={x(0)} cy={y(points[0].conversations)} r="3" fill="var(--series-blue)" />
+            <circle cx={x(0)} cy={y(points[0].leads)} r="3" fill="var(--series-orange)" />
+          </>}
       </svg>
       <div className="flex items-baseline justify-between">
         <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">Leads captured</span>

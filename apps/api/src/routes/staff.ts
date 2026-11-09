@@ -602,17 +602,31 @@ staffRouter.patch("/settings/retention", requireRole("admin"), async (req, res, 
   } catch (err) { next(err); }
 });
 
-// Sidebar nav badges (Inbox, Unanswered): a persistent absolute count, not the transient "new since I last
-// looked" counter /alerts drives -- deliberately its own lightweight query rather than the full Overview payload,
-// since the sidebar renders on every page.
+// Sidebar nav badges (Inbox, Unanswered, Leads): Inbox/Unanswered are persistent absolute pending-work counts.
+// Leads is different -- "captured since I last opened the Leads page" -- so it's scoped per staff member via
+// tenant_users.leads_last_seen_at rather than a tenant-wide query.
 staffRouter.get("/sidebar-counts", async (req, res, next) => {
   try {
+    const authUserId = req.tenant!.authUserId;
     const counts = await withTenant(tenantOf(req), async (tx) => {
       const inbox = (await tx.query(`SELECT count(*)::int AS n FROM conversations WHERE status = 'needs_human'`)).rows[0].n as number;
       const unanswered = (await tx.query(`SELECT count(*)::int AS n FROM unanswered_questions WHERE status = 'open'`)).rows[0].n as number;
-      return { inbox, unanswered };
+      const leads = (await tx.query(
+        `SELECT count(*)::int AS n FROM leads WHERE created_at > COALESCE(
+           (SELECT leads_last_seen_at FROM tenant_users WHERE auth_user_id = $1), 'epoch')`,
+        [authUserId])).rows[0].n as number;
+      return { inbox, unanswered, leads };
     });
     res.json(counts);
+  } catch (err) { next(err); }
+});
+
+// Called when staff open the Leads page, so the sidebar badge above only counts leads captured since then.
+staffRouter.post("/leads/mark-seen", async (req, res, next) => {
+  try {
+    const authUserId = req.tenant!.authUserId;
+    await withTenant(tenantOf(req), (tx) => tx.query(`UPDATE tenant_users SET leads_last_seen_at = now() WHERE auth_user_id = $1`, [authUserId]));
+    res.status(204).end();
   } catch (err) { next(err); }
 });
 
