@@ -63,32 +63,20 @@ export function VolumeTrendChart({
     </div>;
 }
 
-/** The stack, bottom to top. Escalations are split by which of the three writers caused the handoff
- * (conversations.handoff_source, migration 0020): "the AI gave up" and "the student asked for a person" are
- * different signals -- the first points at a knowledge-base gap, the second is just a preference -- and one
- * combined Escalated bar hid which one a university actually had. A conversation escalated before that column
- * existed has no source recorded (API: trend[].escalated_unknown) -- deliberately left out of this chart rather
- * than shown as a standing "Unrecorded" slice, since it only ever shrinks as a share of activity over time and
- * isn't something a university can act on. The overview's own handoff-rate KPI is unaffected: it counts every
- * escalated conversation regardless of source, this chart just doesn't visualize that one slice. */
+/** Two categories only, matching the reference design: AI-resolved vs Escalated. A conversation escalates for
+ * one of three reasons (conversations.handoff_source, migration 0020) and the API still reports them split, but
+ * this chart combines all three into one "Escalated" segment -- simpler to read at a glance than four colors. */
 const RESOLUTION_SERIES = [{
   key: "resolved",
   label: "AI-resolved",
   color: "var(--series-aqua)"
 }, {
-  key: "escalated_ai",
-  label: "AI handed off",
-  color: "var(--series-orange)"
-}, {
-  key: "escalated_student",
-  label: "Student asked",
-  color: "var(--series-blue)"
-}, {
-  key: "escalated_staff",
-  label: "Staff escalated",
-  color: "var(--series-violet)"
+  key: "escalated",
+  label: "Escalated",
+  color: "var(--series-orange)",
+  sourceKeys: ["escalated_ai", "escalated_student", "escalated_staff"]
 }];
-const seriesTotal = (points, key) => points.reduce((s, p) => s + (p[key] ?? 0), 0);
+const valueOf = (p, s) => s.sourceKeys ? s.sourceKeys.reduce((sum, k) => sum + (p[k] ?? 0), 0) : (p[s.key] ?? 0);
 
 /** Weekly resolution outcomes, stacked -- approximated from each conversation's CURRENT status (no separate
  * resolution-event history exists yet), so a conversation still 'open' counts as none of them. */
@@ -97,7 +85,7 @@ export function ResolutionChart({
 }) {
   if (points.length === 0) return <Empty />;
   const barW = Math.min(48, (W - PAD * 2) / points.length - 10);
-  const stackOf = p => RESOLUTION_SERIES.reduce((s, k) => s + (p[k.key] ?? 0), 0);
+  const stackOf = p => RESOLUTION_SERIES.reduce((s, k) => s + valueOf(p, k), 0);
   const max = Math.max(1, ...points.map(stackOf));
   const scaleH = v => v / max * (H - PAD * 2 - 16);
   return <div>
@@ -107,7 +95,7 @@ export function ResolutionChart({
         const base = H - PAD;
         let offset = 0;
         const bars = RESOLUTION_SERIES.map(s => {
-          const value = p[s.key] ?? 0;
+          const value = valueOf(p, s);
           if (value === 0) return null;
           const h = scaleH(value);
           const y = base - offset - h;
@@ -131,18 +119,11 @@ export function ResolutionChart({
 }
 
 /** The dot legend, placed in the Resolution card's header (top-right, next to the title) rather than under the
- * chart, matching the reference. "AI-resolved" and "Escalated" are the chart's own namesake distinction and
- * always show, even at zero -- otherwise an early tenant with no closed or escalated conversations yet shows a
- * legend that doesn't even name what the chart is tracking. Once a specific escalation source actually occurs,
- * its own entry (AI handed off / Student asked / Staff escalated) replaces the generic "Escalated" one, since
- * that detail is strictly more informative once there's something to show. */
-export function ResolutionLegend({
-  points = []
-}) {
-  const sources = RESOLUTION_SERIES.filter(s => s.key !== "resolved" && seriesTotal(points, s.key) > 0);
-  const list = [RESOLUTION_SERIES[0], ...(sources.length ? sources : [{ key: "escalated", label: "Escalated", color: "var(--series-orange)" }])];
+ * chart, matching the reference. Always both entries, even at zero -- otherwise an early tenant with nothing
+ * closed or escalated yet shows a legend that doesn't even name what the chart is tracking. */
+export function ResolutionLegend() {
   return <div className="flex flex-wrap justify-end gap-x-4 gap-y-1 text-xs text-ink-2">
-      {list.map(s => <LegendItem key={s.key} label={s.label} color={s.color} />)}
+      {RESOLUTION_SERIES.map(s => <LegendItem key={s.key} label={s.label} color={s.color} />)}
     </div>;
 }
 function LegendItem({
