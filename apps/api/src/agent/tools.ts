@@ -49,12 +49,12 @@ export const TOOL_DECLARATIONS: ToolDecl[] = [
       type: "object",
       properties: {
         name: { type: "string" },
-        contact: { type: "string", description: "Phone number or email exactly as the student gave it." },
-        alt_contact: { type: "string", description: "If the student gave BOTH a phone number and an email, the other one (whichever isn't in `contact`), exactly as given. Omit if they only gave one." },
+        phone: { type: "string", description: "The student's phone number, exactly as given. Omit if they didn't give one." },
+        email: { type: "string", description: "The student's email address, exactly as given. Omit if they didn't give one." },
         program_interest: { type: "string" },
         consent: { type: "boolean", description: "True only if the student explicitly agreed to be contacted by admissions." },
       },
-      required: ["contact", "consent"],
+      required: ["consent"],
     },
   },
   {
@@ -118,22 +118,25 @@ export async function runTool(name: string, args: Record<string, unknown>, ctx: 
 
       case "capture_lead": {
         if (args.consent !== true) return { kind: "lead", result: { status: "consent_required", note: "Ask the student to confirm they agree to be contacted, then call again." } };
-        const contact = str(args.contact, 120);
-        if (!contact) return { kind: "lead", result: { status: "contact_required" } };
+        const phone = str(args.phone, 120) ?? null;
+        const email = str(args.email, 120) ?? null;
+        if (!phone && !email) return { kind: "lead", result: { status: "contact_required" } };
         const name = str(args.name, 120) ?? null;
         const interest = str(args.program_interest, 120) ?? null;
-        const altContact = str(args.alt_contact, 120) ?? null;
         const saved = await withTenant(ctx.tenantId, async (tx) => {
-          // De-duplicate by contact within the tenant (RLS scopes the lookup).
-          const existing = (await tx.query("SELECT id FROM leads WHERE contact = $1 LIMIT 1", [contact])).rows[0];
+          // De-duplicate within the tenant by whichever of phone/email was given (RLS scopes the lookup).
+          const existing = (await tx.query(
+            "SELECT id FROM leads WHERE (phone IS NOT NULL AND phone = $1) OR (email IS NOT NULL AND email = $2) LIMIT 1", [phone, email])).rows[0];
           if (existing) {
-            await tx.query("UPDATE leads SET name = COALESCE($2, name), program_interest = COALESCE($3, program_interest), alt_contact = COALESCE($4, alt_contact) WHERE id = $1", [existing.id, name, interest, altContact]);
+            await tx.query(
+              "UPDATE leads SET name = COALESCE($2, name), program_interest = COALESCE($3, program_interest), phone = COALESCE(phone, $4), email = COALESCE(email, $5) WHERE id = $1",
+              [existing.id, name, interest, phone, email]);
             return { id: existing.id as string, created: false };
           }
           const id = (await tx.query(
-            `INSERT INTO leads (tenant_id, contact_id, name, contact, alt_contact, program_interest, source, consent) VALUES (current_tenant_id(), $1, $2, $3, $4, $5, $6, true) RETURNING id`,
-            [ctx.contactId, name, contact, altContact, interest, ctx.channel])).rows[0].id as string;
-          // Outbox payload deliberately carries no name or phone number (PRD Section 8/11).
+            `INSERT INTO leads (tenant_id, contact_id, name, phone, email, program_interest, source, consent) VALUES (current_tenant_id(), $1, $2, $3, $4, $5, $6, true) RETURNING id`,
+            [ctx.contactId, name, phone, email, interest, ctx.channel])).rows[0].id as string;
+          // Outbox payload deliberately carries no name, phone or email (PRD Section 8/11).
           await tx.query("INSERT INTO event_outbox (tenant_id, event_type, payload) VALUES (current_tenant_id(), 'lead_created', $1)", [JSON.stringify({ lead_id: id })]);
           return { id, created: true };
         });

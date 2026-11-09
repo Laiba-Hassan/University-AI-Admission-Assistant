@@ -12,7 +12,7 @@ export async function listLeads(tx: Tx, f: LeadFilters) {
   if (f.to) where.push(`l.created_at <= ${p(f.to)}`);
 
   const sql = `
-    SELECT l.id, l.tenant_id, l.name, l.contact, l.alt_contact, l.program_interest, l.source, l.status, l.consent, l.notes, l.created_at,
+    SELECT l.id, l.tenant_id, l.name, l.phone, l.email, l.program_interest, l.source, l.status, l.consent, l.notes, l.created_at,
       tu.email AS assigned_email
     FROM leads l LEFT JOIN tenant_users tu ON tu.id = l.assigned_to
     ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
@@ -35,8 +35,8 @@ function csvEscape(v: unknown) {
   const s = v == null ? "" : String(v);
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
-export function leadsToCsv(rows: { name: string | null; contact: string | null; alt_contact: string | null; program_interest: string | null; source: string | null; status: string; created_at: Date }[]) {
-  const header = ["Name", "Contact", "Alt Contact", "Program Interest", "Source", "Status", "Created"];
-  const lines = rows.map((r) => [r.name, r.contact, r.alt_contact, r.program_interest, r.source, r.status, new Date(r.created_at).toISOString()].map(csvEscape).join(","));
+export function leadsToCsv(rows: { name: string | null; phone: string | null; email: string | null; program_interest: string | null; source: string | null; status: string; created_at: Date }[]) {
+  const header = ["Name", "Phone", "Email", "Program Interest", "Source", "Status", "Created"];
+  const lines = rows.map((r) => [r.name, r.phone, r.email, r.program_interest, r.source, r.status, new Date(r.created_at).toISOString()].map(csvEscape).join(","));
   return [header.join(","), ...lines].join("\n");
 }
