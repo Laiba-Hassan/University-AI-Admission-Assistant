@@ -1,3 +1,4 @@
+import { useRef, useState } from "react";
 const W = 560,
   H = 160,
   PAD = 8;
@@ -11,11 +12,34 @@ const fmtWeek = w => new Date(`${w}T00:00:00Z`).toLocaleDateString(undefined, {
   timeZone: "UTC"
 });
 
+/** Native SVG <title> tooltips always carry the browser's own ~1s hover delay -- fixed OS/browser behavior, not
+ * something CSS or a prop can shorten. This renders instantly on mouseenter, tracks the cursor, and disappears
+ * on mouseleave. One tooltip div per chart, shared by every hoverable element inside it. */
+function useTooltip() {
+  const ref = useRef(null);
+  const [tip, setTip] = useState(null); // { text, x, y } in container-local pixels, or null
+  const show = (text, e) => {
+    const rect = ref.current?.getBoundingClientRect();
+    if (!rect) return;
+    setTip({ text, x: e.clientX - rect.left, y: e.clientY - rect.top });
+  };
+  const hide = () => setTip(null);
+  return { ref, tip, show, hide };
+}
+function TooltipLayer({ tip }) {
+  if (!tip) return null;
+  return <div className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-md border border-line bg-surface px-2 py-1 text-xs font-medium text-ink shadow-md"
+    style={{ left: tip.x, top: tip.y - 8 }}>
+      {tip.text}
+    </div>;
+}
+
 /** A real line chart over the weekly conversation/lead counts the API computed -- no placeholder data. Each
  * series gets its own "LABEL ... value" header row (reference layout), and a soft area fill under its line. */
 export function VolumeTrendChart({
   points
 }) {
+  const { ref, tip, show, hide } = useTooltip();
   if (points.length === 0) return <Empty />;
   // A single real data point has nowhere to draw a line TO -- "M x y" alone paints nothing. Rather than a lone
   // dot, treat it as a rise from 0 (the chart's left edge, before this tenant had any activity) up to today's
@@ -28,7 +52,7 @@ export function VolumeTrendChart({
     : points.map((p, i) => `${i === 0 ? "M" : "L"} ${x(i)} ${y(p[key])}`).join(" ");
   const area = key => `${line(key)} L ${single ? x(1) : x(points.length - 1)} ${H - PAD} L ${x(0)} ${H - PAD} Z`;
   const total = key => points.reduce((s, p) => s + p[key], 0);
-  return <div>
+  return <div ref={ref} className="relative">
       <div className="flex items-baseline justify-between">
         <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">Conversations</span>
         <span className="font-heading text-lg font-semibold text-ink">{total("conversations").toLocaleString()}</span>
@@ -49,19 +73,21 @@ export function VolumeTrendChart({
         <path d={line("conversations")} fill="none" stroke="var(--series-blue)" strokeWidth="2" />
         <path d={line("leads")} fill="none" stroke="var(--series-orange)" strokeWidth="2" />
         {/* A hoverable marker at every real data point for both series: a small visible dot plus a larger
-           invisible hit-circle (easier to land the cursor on), each carrying a native <title> tooltip with the
-           week and exact value. For a single point, this also marks today's real value at the line's end. */}
+           invisible hit-circle (easier to land the cursor on). For a single point, this also marks today's
+           real value at the line's end. */}
         {(single ? [points[0]] : points).map((p, idx) => {
         const i = single ? 1 : idx;
         const weekLabel = fmtWeek(p.week);
         return <g key={p.week}>
-              <circle cx={x(i)} cy={y(p.conversations)} r="8" fill="transparent" className="cursor-pointer">
-                <title>{`${weekLabel} — Conversations: ${p.conversations}`}</title>
-              </circle>
+              <circle cx={x(i)} cy={y(p.conversations)} r="8" fill="transparent" className="cursor-pointer"
+                onMouseEnter={e => show(`${weekLabel} — Conversations: ${p.conversations}`, e)}
+                onMouseMove={e => show(`${weekLabel} — Conversations: ${p.conversations}`, e)}
+                onMouseLeave={hide} />
               <circle cx={x(i)} cy={y(p.conversations)} r="3" fill="var(--series-blue)" />
-              <circle cx={x(i)} cy={y(p.leads)} r="8" fill="transparent" className="cursor-pointer">
-                <title>{`${weekLabel} — Leads captured: ${p.leads}`}</title>
-              </circle>
+              <circle cx={x(i)} cy={y(p.leads)} r="8" fill="transparent" className="cursor-pointer"
+                onMouseEnter={e => show(`${weekLabel} — Leads captured: ${p.leads}`, e)}
+                onMouseMove={e => show(`${weekLabel} — Leads captured: ${p.leads}`, e)}
+                onMouseLeave={hide} />
               <circle cx={x(i)} cy={y(p.leads)} r="3" fill="var(--series-orange)" />
             </g>;
       })}
@@ -71,6 +97,7 @@ export function VolumeTrendChart({
         <span className="font-heading text-lg font-semibold text-ink">{total("leads").toLocaleString()}</span>
       </div>
       <WeekLabels points={points} />
+      <TooltipLayer tip={tip} />
     </div>;
 }
 
@@ -94,12 +121,13 @@ const valueOf = (p, s) => s.sourceKeys ? s.sourceKeys.reduce((sum, k) => sum + (
 export function ResolutionChart({
   points
 }) {
+  const { ref, tip, show, hide } = useTooltip();
   if (points.length === 0) return <Empty />;
   const barW = Math.min(48, (W - PAD * 2) / points.length - 10);
   const stackOf = p => RESOLUTION_SERIES.reduce((s, k) => s + valueOf(p, k), 0);
   const max = Math.max(1, ...points.map(stackOf));
   const scaleH = v => v / max * (H - PAD * 2 - 16);
-  return <div>
+  return <div ref={ref} className="relative">
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Conversation outcomes per week, split by who ended the conversation">
         {points.map((p, i) => {
         const cx = PAD + (i + 0.5) * ((W - PAD * 2) / points.length);
@@ -112,16 +140,16 @@ export function ResolutionChart({
           const h = scaleH(value);
           const y = base - offset - h;
           offset += h;
-          return <rect key={s.key} x={cx - barW / 2} y={y} width={barW} height={Math.max(h, 1)} fill={s.color} rx="2">
-                <title>{`${weekLabel} — ${s.label}: ${value}`}</title>
-              </rect>;
+          const text = `${weekLabel} — ${s.label}: ${value}`;
+          return <rect key={s.key} x={cx - barW / 2} y={y} width={barW} height={Math.max(h, 1)} fill={s.color} rx="2"
+            onMouseEnter={e => show(text, e)} onMouseMove={e => show(text, e)} onMouseLeave={hide} />;
         });
+        const totalText = `${weekLabel} — Total: ${stackOf(p)} (AI-resolved: ${valueOf(p, RESOLUTION_SERIES[0])}, Escalated: ${valueOf(p, RESOLUTION_SERIES[1])})`;
         return <g key={p.week} className="cursor-pointer">
               {/* A full-height invisible hit area behind the stack, so hovering anywhere in the column (not just
                  exactly on a thin segment) shows the week's total breakdown. */}
-              <rect x={cx - barW / 2} y={PAD} width={barW} height={H - PAD * 2} fill="transparent">
-                <title>{`${weekLabel} — Total: ${stackOf(p)} (AI-resolved: ${valueOf(p, RESOLUTION_SERIES[0])}, Escalated: ${valueOf(p, RESOLUTION_SERIES[1])})`}</title>
-              </rect>
+              <rect x={cx - barW / 2} y={PAD} width={barW} height={H - PAD * 2} fill="transparent"
+                onMouseEnter={e => show(totalText, e)} onMouseMove={e => show(totalText, e)} onMouseLeave={hide} />
               <text x={cx} y={base - offset - 6} textAnchor="middle" fontSize="12" fontWeight="600" fill="var(--ink)">
                 {stackOf(p)}
               </text>
@@ -132,6 +160,7 @@ export function ResolutionChart({
       <div className="flex justify-around text-[10px] text-muted">
         {points.map(p => <span key={p.week}>{fmtWeek(p.week)}</span>)}
       </div>
+      <TooltipLayer tip={tip} />
     </div>;
 }
 
