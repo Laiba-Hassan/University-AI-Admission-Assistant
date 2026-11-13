@@ -54,9 +54,7 @@ export function Sidebar({
   return <div className="side-rail relative" onMouseLeave={() => setMenuOpen(false)}>
       <div className="side-panel">
         <Link href="/" className="flex shrink-0 items-center gap-3 px-6 py-5">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-accent font-heading text-sm font-semibold text-accent">
-            E
-          </span>
+          <img src="/icon-192.png" alt="" className="h-9 w-9 shrink-0 rounded-full object-contain" />
           <span className="side-label">
             <div className="font-heading text-base font-semibold text-ink">Enrollium</div>
             <div className="text-[10px] font-semibold uppercase tracking-wide text-muted">Admissions AI</div>
